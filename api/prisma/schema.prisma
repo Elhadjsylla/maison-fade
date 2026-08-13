@@ -1,0 +1,503 @@
+// Schéma Maison Fade — noms de tables/colonnes repris tels quels du CDC §6.
+// Montants en Int (FCFA/XOF, jamais de flottant). Horodatages en UTC.
+// Suppression logique uniquement (archivedAt) — jamais de DELETE métier.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// DATABASE_URL : connexion "pooled" (pgbouncer, port 6543) utilisée par l'app.
+// DIRECT_URL : connexion directe (port 5432) requise par les migrations Prisma
+// derrière le pooler Supabase. Voir Project Settings > Database sur Supabase.
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum Role {
+  admin
+  gerant
+  coiffeur
+}
+
+enum PermissionValeur {
+  oui
+  non
+  limite
+}
+
+enum TicketStatut {
+  ouvert
+  paye
+  annule
+  rembourse
+}
+
+// Chaîne d'états CDC §5.5 — aucune transition arrière.
+enum PaymentStatut {
+  created
+  pending
+  processing
+  succeeded
+  failed
+  expired
+  cancelled
+  refund_pending
+  refunded
+  partially_refunded
+}
+
+enum AppointmentStatut {
+  a_venir
+  attente_sur_place
+  en_cours
+  termine
+  encaisse
+  annule
+  absent
+}
+
+enum StockMovementType {
+  entree
+  sortie
+  inventaire
+  perte
+}
+
+enum LoyaltyTransactionType {
+  gain
+  echange
+  ajustement
+  annulation
+}
+
+enum CommissionStatut {
+  due
+  versee
+}
+
+model Salon {
+  id         String    @id @default(uuid())
+  nom        String
+  tagline    String?
+  tel        String?
+  adresse    String?
+  fauteuils  Int       @default(1)
+  devise     String    @default("XOF")
+  fuseau     String    @default("Africa/Dakar")
+  logoUrl    String?   @map("logo_url")
+  creeLe     DateTime  @default(now()) @map("cree_le")
+  archivedAt DateTime? @map("archived_at")
+
+  users        User[]
+  cashSessions CashSession[]
+  settings     Setting[]
+
+  @@map("salons")
+}
+
+model User {
+  id               String    @id @default(uuid())
+  salonId          String    @map("salon_id")
+  salon            Salon     @relation(fields: [salonId], references: [id])
+  login            String    @unique
+  nom              String
+  role             Role
+  pinHash          String?   @map("pin_hash")
+  passwordHash     String?   @map("password_hash")
+  actif            Boolean   @default(true)
+  dernierAcces     DateTime? @map("dernier_acces")
+  echecsConnexion  Int       @default(0) @map("echecs_connexion")
+  verrouilleJusqua DateTime? @map("verrouille_jusqua")
+  creeLe           DateTime  @default(now()) @map("cree_le")
+  archivedAt       DateTime? @map("archived_at")
+
+  staffProfile         StaffProfile?
+  devices              Device[]             @relation("DeviceUser")
+  devicesApprouves     Device[]             @relation("DeviceApprouvePar")
+  attendances          Attendance[]
+  clientsCoiffeurPrefere Client[]
+  appointmentsCoiffeur Appointment[]       @relation("AppointmentCoiffeur")
+  cashSessionsOuvertes CashSession[]        @relation("CashSessionOuvertPar")
+  cashSessionsFermees  CashSession[]        @relation("CashSessionFermePar")
+  ticketsCoiffeur      Ticket[]             @relation("TicketCoiffeur")
+  ticketsEncaissePar   Ticket[]             @relation("TicketEncaissePar")
+  stockMovements       StockMovement[]
+  commissions          Commission[]
+  reviewsCoiffeur      Review[]           @relation("ReviewCoiffeur")
+  auditLogs            AuditLog[]
+  loyaltyTransactions  LoyaltyTransaction[]
+  notifications        Notification[]
+  settingsModifies     Setting[]
+
+  @@map("users")
+}
+
+// Matrice permission×rôle du CDC §2.2 — seuils paramétrables par Bamba, jamais codés en dur.
+model RolePermission {
+  id            String            @id @default(uuid())
+  role          Role
+  clePermission String            @map("cle_permission")
+  valeur        PermissionValeur  @default(non)
+  plafond       Int?
+
+  @@unique([role, clePermission])
+  @@map("role_permissions")
+}
+
+model Device {
+  id                  String    @id @default(uuid())
+  userId              String    @map("user_id")
+  user                User      @relation("DeviceUser", fields: [userId], references: [id])
+  libelle             String
+  empreinte           String    @unique
+  refreshTokenHash    String?   @map("refresh_token_hash")
+  approuve            Boolean   @default(false)
+  approuveParId       String?   @map("approuve_par")
+  approuvePar         User?     @relation("DeviceApprouvePar", fields: [approuveParId], references: [id])
+  derniereUtilisation DateTime? @map("derniere_utilisation")
+  creeLe              DateTime  @default(now()) @map("cree_le")
+
+  @@map("devices")
+}
+
+model StaffProfile {
+  userId          String    @id @map("user_id")
+  user            User      @relation(fields: [userId], references: [id])
+  specialite      String?
+  objectifMensuel Int?      @map("objectif_mensuel")
+  tauxCommission  Int       @default(15) @map("taux_commission")
+  dateEntree      DateTime? @map("date_entree")
+  noteMoyenne     Float?    @map("note_moyenne")
+
+  @@map("staff_profiles")
+}
+
+model Attendance {
+  id           String    @id @default(uuid())
+  userId       String    @map("user_id")
+  user         User      @relation(fields: [userId], references: [id])
+  date         DateTime  @db.Date
+  heureArrivee DateTime? @map("heure_arrivee")
+  heureDepart  DateTime? @map("heure_depart")
+  pauses       Json?
+  retardMin    Int       @default(0) @map("retard_min")
+  source       String    @default("app")
+
+  @@map("attendance")
+}
+
+model ServiceCategory {
+  id     String    @id @default(uuid())
+  nom    String
+  emoji  String?
+  ordre  Int       @default(0)
+
+  services Service[]
+
+  @@map("service_categories")
+}
+
+model Service {
+  id             String   @id @default(uuid())
+  categorieId    String   @map("categorie_id")
+  categorie      ServiceCategory @relation(fields: [categorieId], references: [id])
+  nom            String
+  description    String?
+  prix           Int
+  dureeMin       Int      @map("duree_min")
+  prixVariable   Boolean  @default(false) @map("prix_variable")
+  actif          Boolean  @default(true)
+  visibleEnLigne Boolean  @default(false) @map("visible_en_ligne")
+  archivedAt     DateTime? @map("archived_at")
+
+  serviceProducts ServiceProduct[]
+  appointments    Appointment[]
+  ticketItems     TicketItem[]
+
+  @@map("services")
+}
+
+model Product {
+  id             String   @id @default(uuid())
+  nom            String
+  categorie      String?
+  prixAchat      Int?     @map("prix_achat")
+  prixVente      Int?     @map("prix_vente")
+  quantite       Int      @default(0)
+  seuilBas       Int      @default(10) @map("seuil_bas")
+  seuilCritique  Int      @default(3) @map("seuil_critique")
+  fournisseur    String?
+  archivedAt     DateTime? @map("archived_at")
+
+  serviceProducts ServiceProduct[]
+  stockMovements  StockMovement[]
+  ticketItems     TicketItem[]
+
+  @@map("products")
+}
+
+model ServiceProduct {
+  serviceId          String  @map("service_id")
+  service             Service @relation(fields: [serviceId], references: [id])
+  productId           String  @map("product_id")
+  product              Product @relation(fields: [productId], references: [id])
+  quantiteConsommee   Int     @default(1) @map("quantite_consommee")
+
+  @@id([serviceId, productId])
+  @@map("service_products")
+}
+
+model Client {
+  id                 String    @id @default(uuid())
+  nom                String
+  telephone          String    @unique
+  notes              String?
+  preferences        Json?
+  coiffeurPrefereId  String?   @map("coiffeur_prefere")
+  coiffeurPrefere    User?     @relation(fields: [coiffeurPrefereId], references: [id])
+  consentementSms    Boolean   @default(false) @map("consentement_sms")
+  creeLe             DateTime  @default(now()) @map("cree_le")
+  archivedAt         DateTime? @map("archived_at")
+
+  loyaltyAccount      LoyaltyAccount?
+  loyaltyTransactions LoyaltyTransaction[]
+  appointments        Appointment[]
+  tickets             Ticket[]
+  reviews             Review[]
+
+  @@map("clients")
+}
+
+model LoyaltyAccount {
+  clientId       String    @id @map("client_id")
+  client         Client    @relation(fields: [clientId], references: [id])
+  numeroCarte    String    @unique @map("numero_carte")
+  points         Int       @default(0)
+  palier         String    @default("bronze")
+  totalDepense   Int       @default(0) @map("total_depense")
+  derniereVisite DateTime? @map("derniere_visite")
+
+  @@map("loyalty_accounts")
+}
+
+model LoyaltyTransaction {
+  id       String                  @id @default(uuid())
+  clientId String                  @map("client_id")
+  client   Client                  @relation(fields: [clientId], references: [id])
+  ticketId String?                 @map("ticket_id")
+  ticket   Ticket?                 @relation(fields: [ticketId], references: [id])
+  type     LoyaltyTransactionType
+  points   Int
+  auteurId String?                 @map("auteur_id")
+  auteur   User?                   @relation(fields: [auteurId], references: [id])
+  creeLe   DateTime                @default(now()) @map("cree_le")
+
+  @@map("loyalty_transactions")
+}
+
+model Appointment {
+  id         String             @id @default(uuid())
+  clientId   String?            @map("client_id")
+  client     Client?            @relation(fields: [clientId], references: [id])
+  serviceId  String             @map("service_id")
+  service    Service            @relation(fields: [serviceId], references: [id])
+  coiffeurId String             @map("coiffeur_id")
+  coiffeur   User               @relation("AppointmentCoiffeur", fields: [coiffeurId], references: [id])
+  debut      DateTime
+  fin        DateTime
+  statut     AppointmentStatut  @default(a_venir)
+  source     String             @default("salon")
+  note       String?
+  creeLe     DateTime           @default(now()) @map("cree_le")
+
+  @@index([coiffeurId, debut])
+  @@map("appointments")
+}
+
+model CashSession {
+  id            String    @id @default(uuid())
+  salonId       String    @map("salon_id")
+  salon         Salon     @relation(fields: [salonId], references: [id])
+  ouvertParId   String    @map("ouvert_par")
+  ouvertPar     User      @relation("CashSessionOuvertPar", fields: [ouvertParId], references: [id])
+  ouvertLe      DateTime  @default(now()) @map("ouvert_le")
+  fondCaisse    Int       @map("fond_caisse")
+  fermeParId    String?   @map("ferme_par")
+  fermePar      User?     @relation("CashSessionFermePar", fields: [fermeParId], references: [id])
+  fermeLe       DateTime? @map("ferme_le")
+  totalAttendu  Int?      @map("total_attendu")
+  totalCompte   Int?      @map("total_compte")
+  ecart         Int?
+  motifEcart    String?   @map("motif_ecart")
+
+  tickets Ticket[]
+
+  @@map("cash_sessions")
+}
+
+model Ticket {
+  id             String       @id @default(uuid())
+  numero         Int          @unique
+  sessionId      String       @map("session_id")
+  session        CashSession  @relation(fields: [sessionId], references: [id])
+  clientId       String?      @map("client_id")
+  client         Client?      @relation(fields: [clientId], references: [id])
+  coiffeurId     String       @map("coiffeur_id")
+  coiffeur       User         @relation("TicketCoiffeur", fields: [coiffeurId], references: [id])
+  encaisseParId  String       @map("encaisse_par")
+  encaissePar    User         @relation("TicketEncaissePar", fields: [encaisseParId], references: [id])
+  sousTotal      Int          @map("sous_total")
+  remiseMontant  Int          @default(0) @map("remise_montant")
+  remiseMotif    String?      @map("remise_motif")
+  total          Int
+  statut         TicketStatut @default(ouvert)
+  creeLe         DateTime     @default(now()) @map("cree_le")
+  payeLe         DateTime?    @map("paye_le")
+
+  items               TicketItem[]
+  payments             Payment[]
+  loyaltyTransactions  LoyaltyTransaction[]
+  stockMovements       StockMovement[]
+
+  @@index([payeLe])
+  @@map("tickets")
+}
+
+model TicketItem {
+  id            String   @id @default(uuid())
+  ticketId      String   @map("ticket_id")
+  ticket        Ticket   @relation(fields: [ticketId], references: [id])
+  serviceId     String?  @map("service_id")
+  service       Service? @relation(fields: [serviceId], references: [id])
+  productId     String?  @map("product_id")
+  product       Product? @relation(fields: [productId], references: [id])
+  libelle       String
+  prixUnitaire  Int      @map("prix_unitaire")
+  quantite      Int      @default(1)
+  total         Int
+
+  @@map("ticket_items")
+}
+
+model Payment {
+  id          String        @id @default(uuid())
+  ticketId    String        @map("ticket_id")
+  ticket      Ticket        @relation(fields: [ticketId], references: [id])
+  methode     String
+  provider    String?
+  providerRef String?       @map("provider_ref")
+  montant     Int
+  frais       Int           @default(0)
+  statut      PaymentStatut @default(created)
+  initieLe    DateTime      @default(now()) @map("initie_le")
+  confirmeLe  DateTime?     @map("confirme_le")
+
+  events PaymentEvent[]
+
+  @@index([statut, initieLe])
+  @@map("payments")
+}
+
+model PaymentEvent {
+  id                String   @id @default(uuid())
+  paymentId         String   @map("payment_id")
+  payment           Payment  @relation(fields: [paymentId], references: [id])
+  eventIdProvider   String   @unique @map("event_id_provider")
+  type              String
+  chargeUtile       Json     @map("charge_utile")
+  signatureValide   Boolean  @map("signature_valide")
+  recuLe            DateTime @default(now()) @map("recu_le")
+
+  @@map("payment_events")
+}
+
+model StockMovement {
+  id        String            @id @default(uuid())
+  productId String            @map("product_id")
+  product   Product           @relation(fields: [productId], references: [id])
+  type      StockMovementType
+  quantite  Int
+  ticketId  String?           @map("ticket_id")
+  ticket    Ticket?           @relation(fields: [ticketId], references: [id])
+  auteurId  String?           @map("auteur_id")
+  auteur    User?             @relation(fields: [auteurId], references: [id])
+  motif     String?
+  creeLe    DateTime          @default(now()) @map("cree_le")
+
+  @@map("stock_movements")
+}
+
+model Commission {
+  id       String            @id @default(uuid())
+  userId   String            @map("user_id")
+  user     User              @relation(fields: [userId], references: [id])
+  periode  String
+  baseCa   Int               @map("base_ca")
+  taux     Int
+  montant  Int
+  statut   CommissionStatut  @default(due)
+  verseLe  DateTime?         @map("verse_le")
+
+  @@map("commissions")
+}
+
+model Review {
+  id          String    @id @default(uuid())
+  clientId    String?   @map("client_id")
+  client      Client?   @relation(fields: [clientId], references: [id])
+  coiffeurId  String    @map("coiffeur_id")
+  coiffeur    User      @relation("ReviewCoiffeur", fields: [coiffeurId], references: [id])
+  ticketId    String?   @map("ticket_id")
+  note        Int
+  commentaire String?
+  publieLe    DateTime  @default(now()) @map("publie_le")
+
+  @@map("reviews")
+}
+
+// Registre inaltérable en append-only (CDC §4.9) — chaîne d'intégrité par empreinte du bloc précédent.
+model AuditLog {
+  id                  String   @id @default(uuid())
+  auteurId            String?  @map("auteur_id")
+  auteur              User?    @relation(fields: [auteurId], references: [id])
+  action              String
+  entite              String
+  entiteId            String?  @map("entite_id")
+  avant                Json?
+  apres                Json?
+  ip                  String?
+  deviceId            String?  @map("device_id")
+  horodatage          DateTime @default(now())
+  empreinte           String
+  empreintePrecedente String?  @map("empreinte_precedente")
+
+  @@map("audit_log")
+}
+
+model Setting {
+  cle         String   @id
+  valeur      Json
+  salonId     String?  @map("salon_id")
+  salon       Salon?   @relation(fields: [salonId], references: [id])
+  modifieParId String? @map("modifie_par")
+  modifiePar  User?    @relation(fields: [modifieParId], references: [id])
+  modifieLe   DateTime @updatedAt @map("modifie_le")
+
+  @@map("settings")
+}
+
+model Notification {
+  id                   String    @id @default(uuid())
+  destinataireRole     Role?     @map("destinataire_role")
+  destinataireUserId   String?   @map("destinataire_user_id")
+  destinataireUser     User?     @relation(fields: [destinataireUserId], references: [id])
+  type                 String
+  titre                String
+  corps                String?
+  lu                   Boolean   @default(false)
+  creeLe               DateTime  @default(now()) @map("cree_le")
+
+  @@map("notifications")
+}
