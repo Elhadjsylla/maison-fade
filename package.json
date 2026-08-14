@@ -1,0 +1,12 @@
+{
+  "name": "maison-fade",
+  "private": true,
+  "description": "Maison Fade — API (api/) + prototype frontend (racine)",
+  "scripts": {
+    "dev": "concurrently -k -n API,WEB -c blue,green \"npm --prefix api run start\" \"serve -l 4321 .\""
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.0",
+    "serve": "^14.2.4"
+  }
+}

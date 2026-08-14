@@ -7,6 +7,10 @@ import { AllExceptionsFilter } from './common/filters/http-exception.filter';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
+  // Dev : le frontend statique est servi depuis une autre origine (port
+  // différent). Pas de cookies impliqués (Bearer token), donc origin ouverte.
+  app.enableCors();
+
   app.setGlobalPrefix('api/v1');
   app.useGlobalPipes(
     new ValidationPipe({

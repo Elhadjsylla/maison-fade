@@ -586,6 +586,8 @@ const ROLES = [
    p:{caisse:1,remise:1,rdv:1,clients:1,stock:1,perso:1,stats:1,admin360:1,journal:1,params:1,users:1}},
   {id:'gerant', name:'Gérant', maxDisc:30,
    p:{caisse:1,remise:1,rdv:1,clients:1,stock:1,perso:1,stats:1,admin360:0,journal:0,params:0,users:0}},
+  {id:'coiffeur', name:'Coiffeur', maxDisc:10,
+   p:{caisse:1,remise:1,rdv:1,clients:1,stock:0,perso:1,stats:1,admin360:0,journal:0,params:0,users:0}},
 ];
 const PERMS = [
   ['caisse','Encaisser'],['remise','Accorder une remise'],['rdv','Gérer les rendez-vous'],
@@ -1290,11 +1292,15 @@ function initV2(){
    ================================================================== */
 ACT_TYPE.auth = ['🔐','Session','#F1ECF0'];
 
+// Backend réel (API NestJS) — voir api/README ou api/.env pour le lancer.
+const API_BASE = 'http://localhost:3000/api/v1';
+let authToken = null;
+
 const ACCOUNTS = [
-  {id:'a1', login:'admin',  pin:'1234', name:'Jésuel A.', ini:'JA', role:'admin',
-   active:true, last:'Hier · 21:04'},
-  {id:'a2', login:'khadim', pin:'5678', name:'Khadim',    ini:'K',  role:'gerant',
-   active:true, last:"Aujourd'hui · 08:05"},
+  {id:'bamba',  login:'bamba',  name:'Bamba',   ini:'B',  role:'admin',    active:true, last:'—'},
+  {id:'fallou', login:'fallou', name:'Fallou',  ini:'F',  role:'gerant',   active:true, last:'—'},
+  {id:'palaye', login:'palaye', name:'Pa Laye', ini:'PL', role:'coiffeur', active:true, last:'—'},
+  {id:'jaz',    login:'jaz',    name:'Jaz',     ini:'J',  role:'coiffeur', active:true, last:'—'},
 ];
 let session = null;
 function roleOf(){ return ROLES.find(r=>r.id===(session?session.role:'')) || ROLES[1]; }
@@ -1314,7 +1320,6 @@ function renderAccPick(){
     <button class="${cur===a.login?'on':''}" onclick="pickAccount('${a.login}')">
       <span class="acc-av ${a.role}">${a.ini}</span>
       <span><span class="n">${a.name}</span><span class="s">${roleName(a.role)} · ${a.login}</span></span>
-      <span class="k">code ${a.pin}</span>
     </button>`).join('');
 }
 function pickAccount(login){
@@ -1336,22 +1341,47 @@ function lockApp(prefill){
   renderAccPick();
   setTimeout(()=>{ const el = document.getElementById(prefill?'a-pin':'a-login'); if(el) el.focus(); }, 120);
 }
-function tryLogin(){
+async function tryLogin(){
   const l = document.getElementById('a-login').value.trim().toLowerCase();
   const p = document.getElementById('a-pin').value.trim();
   if(!l){ authError('Saisissez un identifiant ou choisissez un profil.'); return; }
   const a = ACCOUNTS.find(x=>x.login===l);
   if(!a){ authError(`Aucun compte ne porte l'identifiant « ${l} ».`); return; }
   if(!a.active){ authError('Ce compte est désactivé. Demandez à l\'administrateur de le réactiver.'); return; }
-  if(a.pin!==p){ authError('Code d\'accès incorrect. Réessayez.'); return; }
-  session = a;
-  a.last = "Aujourd'hui · " + nowHM();
-  document.body.classList.remove('locked');
-  document.getElementById('auth').classList.remove('show');
-  applySession();
-  go(can('admin360') ? 'admin' : 'dash');
-  logAct('auth', a.name, 'Connexion', roleOf().name);
-  toast(`Bonjour ${a.name.split(' ')[0]} · profil ${roleOf().name}`);
+
+  const btn = document.getElementById('a-submit');
+  if(btn){ btn.disabled = true; }
+  try{
+    const res = await fetch(`${API_BASE}/auth/login`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({login: l, pin: p, deviceId: `seed-device-${l}`}),
+    });
+    const body = await res.json();
+    if(!res.ok){ authError(body.message || 'Connexion refusée.'); return; }
+
+    authToken = body.accessToken;
+    const meRes = await fetch(`${API_BASE}/me`, {
+      headers: {Authorization: `Bearer ${authToken}`},
+    });
+    const me = await meRes.json();
+    if(!meRes.ok){ authError('Connecté, mais impossible de charger le profil.'); return; }
+
+    a.name = me.nom || a.name;
+    a.role = me.role || a.role;
+    session = a;
+    a.last = "Aujourd'hui · " + nowHM();
+    document.body.classList.remove('locked');
+    document.getElementById('auth').classList.remove('show');
+    applySession();
+    go(can('admin360') ? 'admin' : 'dash');
+    logAct('auth', a.name, 'Connexion', roleOf().name);
+    toast(`Bonjour ${a.name.split(' ')[0]} · profil ${roleOf().name}`);
+  }catch(err){
+    authError('Serveur API injoignable (http://localhost:3000). Vérifiez qu\'il tourne.');
+  }finally{
+    if(btn){ btn.disabled = false; }
+  }
 }
 function logout(){
   if(session) logAct('auth', session.name, 'Déconnexion', roleOf().name);
