@@ -93,6 +93,7 @@ model Salon {
   users        User[]
   cashSessions CashSession[]
   settings     Setting[]
+  ticketCounter TicketCounter?
 
   @@map("salons")
 }
@@ -335,6 +336,16 @@ model CashSession {
   tickets Ticket[]
 
   @@map("cash_sessions")
+}
+
+// Numérotation séquentielle sans trou par salon (CDC §4.4) — incrément
+// atomique via UPDATE ... RETURNING, jamais lu-puis-écrit côté application.
+model TicketCounter {
+  salonId  String @id @map("salon_id")
+  salon    Salon  @relation(fields: [salonId], references: [id])
+  dernier  Int    @default(0)
+
+  @@map("ticket_counters")
 }
 
 model Ticket {
