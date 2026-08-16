@@ -2,7 +2,7 @@
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>Maison Fade — Gestion du salon</title>
 <link rel="icon" type="image/jpeg" href="logo/Logo MF.jpeg">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -248,6 +248,13 @@
                 Encaisser
               </button>
             </div>
+          </div>
+        </div>
+        <div class="mobile-cart-bar" id="mobile-cart-bar" onclick="openPayment()" role="button" aria-label="Voir le panier et encaisser">
+          <div class="mcb-info"><b id="mcb-count">0</b><span id="mcb-label"> article</span></div>
+          <div class="mcb-total" id="mcb-total">0 F</div>
+          <div class="mcb-cta">Encaisser
+            <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg>
           </div>
         </div>
       </section>

@@ -595,6 +595,9 @@ input,select{font-family:inherit;font-size:14px}
 .mnav button{display:flex;flex-direction:column;align-items:center;gap:4px;padding:6px 2px;color:var(--muted);font-size:10.5px;font-weight:700;border-radius:10px}
 .mnav button svg{width:20px;height:20px;stroke-width:2}
 .mnav button.on{color:var(--gold-text)}
+/* Toujours masquée sur grand écran (le ticket complet est déjà visible) —
+   seule la media query ≤720px ci-dessous la révèle via .show. */
+.mobile-cart-bar{display:none}
 
 /* ---------- Responsive ---------- */
 @media(max-width:1080px){
@@ -634,6 +637,42 @@ input,select{font-family:inherit;font-size:14px}
   .modal-body{padding:18px 16px}
   .set-body{padding:18px 16px}
   .set-foot{padding:14px 16px}
+
+  /* Les grilles à 4/2 colonnes qui restaient tassées sur téléphone passent
+     en pleine largeur — sur PC on lit 4 chiffres côte à côte, sur mobile on
+     veut une carte par écran, comme n'importe quelle app native. */
+  .kpis{grid-template-columns:1fr}
+  .dr-kpi{grid-template-columns:1fr}
+
+  /* Le badge de rôle ("🛡️ Administrateur") ne garde que l'icône — le mot
+     est ce qui faisait déborder les icônes de la barre du haut (cloche,
+     réglages) hors de l'écran. */
+  .role-pill{padding:8px;gap:0}
+  .role-pill .rp-label{display:none}
+
+  /* Cibles tactiles : un doigt vise plus large qu'un curseur. */
+  .btn{min-height:46px}
+  .nav-item{min-height:46px}
+  .mnav button{min-height:52px;justify-content:center}
+  .cat-tab{min-height:40px}
+
+  /* Barre de panier flottante (caisse) — le total et Encaisser toujours à
+     portée de pouce, sans avoir à remonter tout en haut de l'écran après
+     chaque article ajouté. Cachée par défaut (classe .show ajoutée par JS
+     dès que le panier contient quelque chose). */
+  .mobile-cart-bar{
+    display:none;position:fixed;left:12px;right:12px;bottom:calc(58px + env(safe-area-inset-bottom));z-index:109;
+    background:var(--plum);color:#fff;border-radius:16px;padding:12px 14px;align-items:center;gap:10px;
+    box-shadow:var(--shadow-lg);animation:fade .2s ease;
+  }
+  .mobile-cart-bar.show{display:flex}
+  .mobile-cart-bar .mcb-info{font-size:12px;color:#D8C6D8;flex-shrink:0}
+  .mobile-cart-bar .mcb-info b{color:#fff;font-size:15px;font-family:'Fraunces',serif}
+  .mobile-cart-bar .mcb-total{font-family:'Fraunces',serif;font-size:16px;font-weight:600;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .mobile-cart-bar .mcb-cta{
+    display:flex;align-items:center;gap:4px;background:linear-gradient(120deg,var(--gold-2),var(--gold));
+    color:#fff;padding:10px 14px;border-radius:11px;font-weight:700;font-size:12.5px;white-space:nowrap;flex-shrink:0
+  }
 }
 
 /* --- correctifs de mise en page --- */

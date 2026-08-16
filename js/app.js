@@ -221,6 +221,17 @@ function renderTicket(){
   document.getElementById('grand-total').textContent=fmt(total);
   document.getElementById('pay-btn').style.opacity = cart.length?1:.5;
   document.getElementById('pay-btn').style.pointerEvents = cart.length?'auto':'none';
+
+  // Barre de panier flottante (mobile uniquement, cf. CSS) — évite d'avoir à
+  // remonter tout en haut de l'écran pour voir le total et encaisser sur un
+  // téléphone : le total et le bouton Encaisser restent toujours à portée de pouce.
+  const mcb = document.getElementById('mobile-cart-bar');
+  if(mcb){
+    mcb.classList.toggle('show', cart.length>0);
+    document.getElementById('mcb-count').textContent = count;
+    document.getElementById('mcb-label').textContent = count>1 ? ' articles' : ' article';
+    document.getElementById('mcb-total').textContent = fmt(total);
+  }
   return total;
 }
 function renderLoyaltyChip(){
@@ -2560,7 +2571,7 @@ function applySession(){
   document.getElementById('u-role').textContent = r.name;
   const pill = document.getElementById('role-pill');
   pill.className = 'role-pill ' + session.role;
-  pill.innerHTML = (session.role==='admin'?'🛡️':'🧾') + ' ' + r.name;
+  pill.innerHTML = (session.role==='admin'?'🛡️':'🧾') + ' <span class="rp-label">' + r.name + '</span>';
 
   document.querySelectorAll('.nav-item[data-view]').forEach(n=>{
     const p = VIEW_PERM[n.dataset.view];
