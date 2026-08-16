@@ -5,7 +5,10 @@ import { AppModule } from './app.module';
 import { AllExceptionsFilter } from './common/filters/http-exception.filter';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  // rawBody: true expose req.rawBody (Buffer) sur chaque requête — requis
+  // pour vérifier la signature UnitechPay sur le corps brut (CDC §5.4),
+  // jamais sur le JSON reparsé.
+  const app = await NestFactory.create(AppModule, { rawBody: true });
 
   // Dev : le frontend statique est servi depuis une autre origine (port
   // différent). Pas de cookies impliqués (Bearer token), donc origin ouverte.

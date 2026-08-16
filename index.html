@@ -3,7 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>La Coupe d'Or — Gestion du salon</title>
+<title>Maison Fade — Gestion du salon</title>
+<link rel="icon" type="image/jpeg" href="logo/Logo MF.jpeg">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -14,9 +15,9 @@
   <!-- SIDEBAR -->
   <aside class="sidebar">
     <div class="brand">
-      <div class="mark serif">L</div>
+      <div class="mark serif"><img src="logo/Logo MF.jpeg" alt="Maison Fade" style="width:100%;height:100%;object-fit:cover;border-radius:inherit"></div>
       <div>
-        <div class="name">La Coupe d'Or</div>
+        <div class="name">Maison Fade</div>
         <div class="sub">Salon · Barber</div>
       </div>
     </div>
@@ -134,29 +135,29 @@
       <!-- ============ DASHBOARD ============ -->
       <section class="view active" id="view-dash">
         <div class="kpis">
-          <div class="kpi card">
+          <div class="kpi card clickable" onclick="openKpiCaTodayDetail()">
             <div class="k-ico" style="background:var(--gold-soft);color:#8a6a1f"><svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg></div>
             <div class="k-val" id="kpi-ca">0 F</div>
             <div class="k-lbl">Chiffre d'affaires du jour</div>
-            <div class="k-delta k-up">▲ +12% vs hier</div>
+            <div class="k-delta" id="kpi-ca-delta"></div>
           </div>
-          <div class="kpi card">
+          <div class="kpi card clickable" onclick="openKpiRdvTodayDetail()">
             <div class="k-ico" style="background:#E4F1FB;color:#1E6FA8"><svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg></div>
-            <div class="k-val" id="kpi-rdv">7</div>
+            <div class="k-val" id="kpi-rdv">0</div>
             <div class="k-lbl">Rendez-vous aujourd'hui</div>
-            <div class="k-delta k-up">▲ 2 en attente</div>
+            <div class="k-delta k-up" id="kpi-rdv-delta"></div>
           </div>
-          <div class="kpi card">
+          <div class="kpi card clickable" onclick="openKpiClientsTodayDetail()">
             <div class="k-ico" style="background:var(--green-soft);color:var(--green)"><svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div>
             <div class="k-val" id="kpi-clients">0</div>
             <div class="k-lbl">Clients servis</div>
-            <div class="k-delta k-up">▲ panier moyen 9 500 F</div>
+            <div class="k-delta k-up" id="kpi-clients-delta"></div>
           </div>
-          <div class="kpi card">
+          <div class="kpi card clickable" onclick="openKpiRdvTodayDetail()">
             <div class="k-ico" style="background:#F3E8F2;color:var(--plum-600)"><svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></div>
-            <div class="k-val">78%</div>
-            <div class="k-lbl">Taux d'occupation</div>
-            <div class="k-delta k-dn">▼ 3 fauteuils libres</div>
+            <div class="k-val" id="kpi-rdv-avenir">0</div>
+            <div class="k-lbl">Rendez-vous à venir</div>
+            <div class="k-delta" id="kpi-rdv-avenir-delta"></div>
           </div>
         </div>
 
@@ -168,22 +169,11 @@
           <div style="display:flex;flex-direction:column;gap:18px">
             <div class="card mini-cal">
               <div class="section-title">Recettes de la semaine</div>
-              <div class="bars">
-                <div class="bar" style="height:45%"><span>Lun</span></div>
-                <div class="bar" style="height:62%"><span>Mar</span></div>
-                <div class="bar" style="height:38%"><span>Mer</span></div>
-                <div class="bar" style="height:70%"><span>Jeu</span></div>
-                <div class="bar" style="height:88%"><span>Ven</span></div>
-                <div class="bar" style="height:100%"><span>Sam</span></div>
-                <div class="bar" style="height:30%"><span>Dim</span></div>
-              </div>
+              <div class="bars" id="dash-bars"></div>
             </div>
             <div class="card mini-cal">
               <div class="section-title">Prestations phares</div>
-              <div class="top-serv"><span style="font-weight:700">✂️ Dégradé + barbe</span><span class="tag gold">32 ventes</span></div>
-              <div class="top-serv"><span style="font-weight:700">💈 Coupe homme</span><span class="tag gold">27 ventes</span></div>
-              <div class="top-serv"><span style="font-weight:700">💇🏾‍♀️ Tresses collées</span><span class="tag gold">18 ventes</span></div>
-              <div class="top-serv"><span style="font-weight:700">🎨 Coloration</span><span class="tag gold">11 ventes</span></div>
+              <div id="dash-top-serv"></div>
             </div>
           </div>
         </div>
@@ -192,17 +182,17 @@
       <!-- ============ RENDEZ-VOUS ============ -->
       <section class="view" id="view-rdv">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;flex-wrap:wrap;gap:12px">
-          <div class="cat-tabs" style="margin:0">
-            <button class="cat-tab active">Aujourd'hui</button>
-            <button class="cat-tab">Demain</button>
-            <button class="cat-tab">Cette semaine</button>
+          <div class="cat-tabs" id="rdv-tabs" style="margin:0">
+            <button class="cat-tab active" onclick="setRdvFilter('today', this)">Aujourd'hui</button>
+            <button class="cat-tab" onclick="setRdvFilter('tomorrow', this)">Demain</button>
+            <button class="cat-tab" onclick="setRdvFilter('week', this)">Cette semaine</button>
           </div>
           <button class="btn btn-plum" onclick="openRdvModal()">
             <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
             Nouveau rendez-vous
           </button>
         </div>
-        <div class="card" style="overflow:hidden">
+        <div class="card" style="overflow-x:auto">
           <table class="tbl">
             <thead><tr><th>Heure</th><th>Client</th><th>Prestation</th><th>Coiffeur</th><th>Statut</th><th></th></tr></thead>
             <tbody id="rdv-tbody"></tbody>
@@ -227,30 +217,29 @@
 
           <div class="ticket">
             <div class="ticket-head">
-              <div class="t-t">Ticket en cours <span id="ticket-no" style="font-size:12px;color:var(--gold-2)">#00248</span></div>
-              <div class="t-s">Client au comptoir</div>
+              <div>
+                <div class="t-t">Ticket en cours <span id="ticket-no" style="font-size:12px;color:var(--gold-2)">#00248</span></div>
+                <div class="t-s">Client au comptoir</div>
+              </div>
+              <button class="btn btn-ghost" style="padding:7px 12px;font-size:12px" onclick="closeCashSessionPrompt()">Clôturer la caisse</button>
             </div>
             <div class="ticket-body" id="ticket-body"></div>
             <div class="ticket-foot">
               <div class="assign">
-                <select id="assign-client" onchange="selectClient(this.value)">
+                <select id="assign-client" onchange="selectClient(this.value)" aria-label="Client rattaché au ticket">
                   <option value="">🪪 Client de passage</option>
                 </select>
               </div>
               <div id="loyalty-chip"></div>
               <div class="assign">
-                <select id="assign-coiffeur">
+                <select id="assign-coiffeur" aria-label="Coiffeur qui exécute la prestation">
                   <option value="">👤 Attribuer un coiffeur…</option>
-                  <option>Modou (Barber)</option>
-                  <option>Awa (Coloriste)</option>
-                  <option>Fatou (Tresses)</option>
-                  <option>Cheikh (Barber)</option>
                 </select>
               </div>
               <div class="sum-row"><span>Sous-total</span><span id="sub-total">0 F</span></div>
               <div class="sum-row" id="loyalty-row" style="display:none"><span id="loyalty-lbl">Avantage fidélité</span><span id="loyalty-amount" style="color:var(--green);font-weight:700">– 0 F</span></div>
               <div class="sum-row">
-                <span class="disc-input">Remise <input type="number" id="discount" value="0" min="0" max="100" oninput="renderTicket()"> %</span>
+                <span class="disc-input">Remise <input type="number" id="discount" value="0" min="0" max="100" oninput="renderTicket()" aria-label="Remise en pourcentage"> %</span>
                 <span id="disc-amount">– 0 F</span>
               </div>
               <div class="sum-row total"><span>Total</span><b id="grand-total">0 F</b></div>
@@ -268,9 +257,9 @@
         <div class="loy-banner" id="loy-banner"></div>
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
           <div class="section-title" style="margin:0">Fichier clients · fidélité</div>
-          <button class="btn btn-plum"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Ajouter</button>
+          <button class="btn btn-plum" onclick="addClientFromView()"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Ajouter</button>
         </div>
-        <div class="card" style="overflow:hidden">
+        <div class="card" style="overflow-x:auto">
           <table class="tbl">
             <thead><tr><th>Client</th><th>Carte</th><th>Niveau</th><th>Visites</th><th>Points</th><th>Total dépensé</th><th></th></tr></thead>
             <tbody id="clients-tbody"></tbody>
@@ -283,13 +272,14 @@
 
       <!-- ============ ÉQUIPE ============ -->
       <section class="view" id="view-team">
+        <div id="real-staff-panel" style="margin-bottom:22px"></div>
         <div class="sup-band" id="sup-band"></div>
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:12px">
           <div class="section-title" style="margin:0">Qui est là, qui travaille, sur quoi</div>
           <div class="seg" id="staff-seg">
-            <button class="on" onclick="setStaffSort('occ')">Charge</button>
+            <button class="on" onclick="setStaffSort('goalPct')">Objectif</button>
             <button onclick="setStaffSort('ca')">Recettes</button>
-            <button onclick="setStaffSort('rating')">Satisfaction</button>
+            <button onclick="setStaffSort('punctPct')">Ponctualité</button>
           </div>
         </div>
         <div class="st-grid" id="staff-grid"></div>
@@ -307,33 +297,46 @@
 
       <!-- ============ STATS ============ -->
       <section class="view" id="view-stats">
-        <div class="kpis">
-          <div class="kpi card"><div class="k-val serif">1 245 000 F</div><div class="k-lbl">CA du mois</div><div class="k-delta k-up">▲ +18%</div></div>
-          <div class="kpi card"><div class="k-val serif">312</div><div class="k-lbl">Clients servis (mois)</div><div class="k-delta k-up">▲ +24</div></div>
-          <div class="kpi card"><div class="k-val serif">9 480 F</div><div class="k-lbl">Panier moyen</div><div class="k-delta k-up">▲ +6%</div></div>
-          <div class="kpi card"><div class="k-val serif">64%</div><div class="k-lbl">Clients fidèles</div><div class="k-delta k-up">▲ récurrence</div></div>
+        <div class="cat-tabs" id="stats-tabs" style="margin:0 0 18px">
+          <button class="cat-tab" onclick="setStatsRange(7,this)">7 jours</button>
+          <button class="cat-tab active" onclick="setStatsRange(30,this)">30 jours</button>
+          <button class="cat-tab" onclick="setStatsRange(90,this)">90 jours</button>
         </div>
+        <div class="kpis" id="stats-kpis"></div>
         <div class="dash-grid">
           <div class="card mini-cal">
             <div class="section-title">Répartition des paiements</div>
             <div id="pay-split"></div>
           </div>
           <div class="card mini-cal">
-            <div class="section-title">CA par coiffeur</div>
-            <div class="top-serv"><span style="font-weight:700">Modou</span><span class="tag gold">418 000 F</span></div>
-            <div class="top-serv"><span style="font-weight:700">Fatou</span><span class="tag gold">356 000 F</span></div>
-            <div class="top-serv"><span style="font-weight:700">Awa</span><span class="tag gold">289 000 F</span></div>
-            <div class="top-serv"><span style="font-weight:700">Cheikh</span><span class="tag gold">182 000 F</span></div>
+            <div class="section-title" id="stats-coiffeur-title">CA par coiffeur</div>
+            <div id="stats-coiffeur"></div>
+          </div>
+        </div>
+        <div class="dash-grid">
+          <div class="card mini-cal">
+            <div class="section-title">Prestations phares</div>
+            <div id="stats-top-serv"></div>
+          </div>
+          <div class="card mini-cal">
+            <div class="section-title">Meilleurs clients</div>
+            <div id="stats-top-clients"></div>
           </div>
         </div>
       </section>
 
       <!-- ============ STOCK ============ -->
       <section class="view" id="view-stock">
-        <div class="section-title">Stock des produits</div>
-        <div class="card" style="overflow:hidden">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;flex-wrap:wrap;gap:12px">
+          <div class="section-title" style="margin:0">Stock des produits</div>
+          <button class="btn btn-plum" onclick="addProductPrompt()">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+            Nouveau produit
+          </button>
+        </div>
+        <div class="card" style="overflow-x:auto">
           <table class="tbl">
-            <thead><tr><th>Produit</th><th>Catégorie</th><th>Prix vente</th><th>Quantité</th><th>Statut</th></tr></thead>
+            <thead><tr><th>Produit</th><th>Catégorie</th><th>Prix vente</th><th>Quantité</th><th>Statut</th><th></th></tr></thead>
             <tbody id="stock-tbody"></tbody>
           </table>
         </div>
@@ -391,7 +394,7 @@
             Exporter
           </button>
         </div>
-        <div class="card" style="overflow:hidden">
+        <div class="card" style="overflow-x:auto">
           <table class="tbl">
             <thead><tr><th>Heure</th><th>Action</th><th>Détail</th><th>Auteur</th><th>Montant</th></tr></thead>
             <tbody id="journal-tbody"></tbody>
@@ -412,15 +415,32 @@
     <div class="modal-head"><h3>Nouveau rendez-vous</h3><button class="x-btn" onclick="closeModal('rdv-overlay')">✕</button></div>
     <div class="modal-body">
       <div class="form-grid">
-        <div class="fg full"><label>Nom du client</label><input id="r-name" placeholder="Ex. Aïssatou Ndiaye"></div>
-        <div class="fg"><label>Téléphone</label><input id="r-phone" placeholder="77 000 00 00"></div>
-        <div class="fg"><label>Heure</label><input id="r-time" type="time" value="10:00"></div>
-        <div class="fg full"><label>Prestation</label><select id="r-serv"></select></div>
-        <div class="fg full"><label>Coiffeur</label>
+        <div class="fg full"><label for="r-name">Nom du client</label><input id="r-name" placeholder="Ex. Aïssatou Ndiaye"></div>
+        <div class="fg"><label for="r-phone">Téléphone</label><input id="r-phone" placeholder="77 000 00 00"></div>
+        <div class="fg"><label for="r-time">Heure</label><input id="r-time" type="time" value="10:00"></div>
+        <div class="fg full"><label for="r-serv">Prestation</label><select id="r-serv"></select></div>
+        <div class="fg full"><label for="r-coiffeur">Coiffeur</label>
           <select id="r-coiffeur"><option>Modou</option><option>Awa</option><option>Fatou</option><option>Cheikh</option></select>
         </div>
       </div>
       <button class="btn btn-gold btn-block" style="margin-top:20px" onclick="addRdv()">Confirmer le rendez-vous</button>
+    </div>
+  </div>
+</div>
+
+<!-- ======= MODAL GÉNÉRIQUE (formulaire / confirmation) ======= -->
+<!-- Remplace prompt()/confirm() du navigateur, jamais à leur place (CDC §9.1 —
+     « le système dit toujours où il en est », pas de dialogue hors du thème). -->
+<div class="overlay" id="form-modal-overlay">
+  <div class="modal">
+    <div class="modal-head"><h3 id="form-modal-title">—</h3><button class="x-btn" onclick="cancelFormModal()">✕</button></div>
+    <div class="modal-body">
+      <div id="form-modal-message" style="font-size:13px;color:var(--muted);line-height:1.5;margin-bottom:14px"></div>
+      <form class="form-grid" id="form-modal-body" onsubmit="submitFormModal(event)"></form>
+      <div style="display:flex;gap:10px;margin-top:20px">
+        <button type="button" class="btn btn-ghost" style="flex:1;justify-content:center" onclick="cancelFormModal()">Annuler</button>
+        <button type="button" class="btn btn-gold" style="flex:1;justify-content:center" id="form-modal-confirm" onclick="submitFormModal()">Valider</button>
+      </div>
     </div>
   </div>
 </div>
@@ -437,7 +457,7 @@
 <div id="auth">
   <div class="auth-side">
     <div>
-      <div class="auth-mark" id="auth-mark">L</div>
+      <div class="auth-mark" id="auth-mark"><img src="logo/Logo MF.jpeg" alt="Maison Fade" style="width:100%;height:100%;object-fit:cover;border-radius:inherit"></div>
       <h1>Le salon,<br>sous contrôle.</h1>
       <div class="lead">Caisse, agenda, fidélité, stock et équipe dans une seule application. Chaque profil n'ouvre que ce dont il a besoin pour travailler.</div>
     </div>
@@ -449,8 +469,8 @@
   <div class="auth-main">
     <div class="auth-box">
       <div class="auth-brand">
-        <div class="m" id="auth-mark-m">L</div>
-        <div class="n" id="auth-name-m">La Coupe d'Or</div>
+        <div class="m" id="auth-mark-m"><img src="logo/Logo MF.jpeg" alt="Maison Fade" style="width:100%;height:100%;object-fit:cover;border-radius:inherit"></div>
+        <div class="n" id="auth-name-m">Maison Fade</div>
       </div>
       <h2>Connexion</h2>
       <div class="sub">Choisissez un profil, ou saisissez directement votre identifiant.</div>
@@ -495,7 +515,7 @@
   <div class="cmdk" role="dialog" aria-label="Recherche">
     <div class="cmdk-in">
       <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
-      <input id="cmdk-input" placeholder="Chercher un client, une prestation, un coiffeur, une page…" autocomplete="off">
+      <input id="cmdk-input" placeholder="Chercher un client, une prestation, un coiffeur, une page…" autocomplete="off" aria-label="Recherche universelle">
       <button class="x-btn" onclick="closeCmdk()" aria-label="Fermer">✕</button>
     </div>
     <div class="cmdk-res" id="cmdk-res"></div>
@@ -520,6 +540,13 @@
   <div class="dr-body" id="dr-body"></div>
 </aside>
 
+<!-- ======= DÉTAIL STATISTIQUE (tiroir générique) ======= -->
+<div class="scrim" id="stat-scrim" onclick="closeStatDrawer()"></div>
+<aside class="drawer" id="stat-drawer" role="dialog" aria-label="Détail statistique">
+  <div class="dr-head" id="stat-dr-head"></div>
+  <div class="dr-body" id="stat-dr-body"></div>
+</aside>
+
 <!-- ======= NAV MOBILE ======= -->
 <nav class="mnav" id="mnav">
   <button data-view="dash" onclick="go('dash')"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg>Bord</button>
@@ -530,7 +557,7 @@
 </nav>
 
 <div class="toast" id="toast"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg><span id="toast-msg"></span></div>
-
+<div id="global-tooltip" class="chart-tooltip"></div>
 <script src="js/app.js"></script>
 </body>
 </html>

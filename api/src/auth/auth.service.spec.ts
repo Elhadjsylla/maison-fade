@@ -5,6 +5,7 @@ import { UnauthorizedException } from '@nestjs/common';
 import * as argon2 from 'argon2';
 import { AuthService } from './auth.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { AuditService } from '../audit/audit.service';
 
 describe('AuthService', () => {
   let auth: AuthService;
@@ -74,6 +75,7 @@ describe('AuthService', () => {
               })[key],
           },
         },
+        { provide: AuditService, useValue: { record: jest.fn().mockResolvedValue(undefined) } },
       ],
     }).compile();
 

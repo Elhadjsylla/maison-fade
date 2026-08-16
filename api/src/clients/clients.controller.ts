@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   Patch,
@@ -11,9 +12,11 @@ import {
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PermissionsGuard } from '../common/guards/permissions.guard';
 import { Permissions } from '../common/decorators/permissions.decorator';
+import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { ClientsService } from './clients.service';
 import { CreateClientDto } from './dto/create-client.dto';
 import { UpdateClientDto } from './dto/update-client.dto';
+import type { AuthenticatedUser } from '../auth/auth.types';
 
 @Controller('clients')
 @UseGuards(JwtAuthGuard, PermissionsGuard)
@@ -48,5 +51,19 @@ export class ClientsController {
   @Permissions('clients.ecrire')
   update(@Param('id') id: string, @Body() dto: UpdateClientDto) {
     return this.clients.update(id, dto);
+  }
+
+  // Droit d'accès (CDC §10) — export complet des données personnelles.
+  @Get(':id/export')
+  @Permissions('clients.lire')
+  exportData(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.clients.exportData(id, user);
+  }
+
+  // Droit de suppression (CDC §10) — anonymisation, réservée à l'admin.
+  @Delete(':id')
+  @Permissions('clients.ecrire')
+  erase(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.clients.erase(id, user);
   }
 }

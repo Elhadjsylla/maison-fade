@@ -3,9 +3,12 @@
   "private": true,
   "description": "Maison Fade — API (api/) + prototype frontend (racine)",
   "scripts": {
-    "dev": "concurrently -k -n API,WEB -c blue,green \"npm --prefix api run start\" \"serve -l 4321 .\""
+    "dev": "concurrently -k -n API,WEB -c blue,green \"npm --prefix api run start:dev\" \"serve -l 4321 .\"",
+    "test:e2e": "playwright test"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.13.0",
+    "@playwright/test": "^1.62.1",
     "concurrently": "^9.1.0",
     "serve": "^14.2.4"
   }

@@ -1,4 +1,4 @@
-import { IsIn, IsInt, IsOptional, Min } from 'class-validator';
+import { IsIn, IsInt, IsOptional, IsString, Min } from 'class-validator';
 
 const METHODES = ['especes', 'wave', 'orange_money', 'free_money', 'carte'] as const;
 export type MethodePaiement = (typeof METHODES)[number];
@@ -19,4 +19,10 @@ export class PayTicketDto {
   @IsInt()
   @Min(0)
   recu?: number;
+
+  // Client de passage sans fiche (CDC §5.3) — prioritaire sur le téléphone
+  // du client attaché au ticket, si renseigné.
+  @IsOptional()
+  @IsString()
+  customerPhone?: string;
 }

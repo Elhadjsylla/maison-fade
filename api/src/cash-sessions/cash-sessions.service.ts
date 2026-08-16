@@ -5,12 +5,18 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { AuditService } from '../audit/audit.service';
+import { TelegramService } from '../alerts/telegram.service';
 import { OpenCashSessionDto } from './dto/open-cash-session.dto';
 import { CloseCashSessionDto } from './dto/close-cash-session.dto';
 
 @Injectable()
 export class CashSessionsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly audit: AuditService,
+    private readonly telegram: TelegramService,
+  ) {}
 
   async getCurrent(salonId: string) {
     const session = await this.prisma.cashSession.findFirst({
@@ -68,7 +74,7 @@ export class CashSessionsService {
       );
     }
 
-    return this.prisma.cashSession.update({
+    const closed = await this.prisma.cashSession.update({
       where: { id },
       data: {
         fermeParId: userId,
@@ -79,5 +85,28 @@ export class CashSessionsService {
         motifEcart: dto.motifEcart,
       },
     });
+
+    await this.audit.record({
+      auteurId: userId,
+      action: 'cloture_caisse',
+      entite: 'cash_session',
+      entiteId: id,
+      apres: {
+        fondCaisse: session.fondCaisse,
+        totalAttendu,
+        totalCompte: dto.totalCompte,
+        ecart,
+        motifEcart: dto.motifEcart,
+      },
+    });
+
+    if (ecart !== 0) {
+      const closer = await this.prisma.user.findUnique({ where: { id: userId } });
+      await this.telegram.notify(
+        `⚖️ <b>Écart de clôture</b>\n${closer?.nom ?? 'Un utilisateur'} a clôturé la caisse avec un écart de ${ecart} F.\nMotif : ${dto.motifEcart}`,
+      );
+    }
+
+    return closed;
   }
 }

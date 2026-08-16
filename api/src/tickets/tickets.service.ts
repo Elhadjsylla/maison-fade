@@ -13,6 +13,8 @@ import { AddTicketItemDto } from './dto/add-ticket-item.dto';
 import { ApplyDiscountDto } from './dto/apply-discount.dto';
 import { PayTicketDto } from './dto/pay-ticket.dto';
 import { CancelTicketDto } from './dto/cancel-ticket.dto';
+import { PaymentsService } from '../payments/payments.service';
+import { AuditService } from '../audit/audit.service';
 import type { AuthenticatedUser } from '../auth/auth.types';
 
 const TICKET_INCLUDE = {
@@ -24,7 +26,11 @@ const TICKET_INCLUDE = {
 
 @Injectable()
 export class TicketsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly paymentsService: PaymentsService,
+    private readonly audit: AuditService,
+  ) {}
 
   async findOne(id: string) {
     const ticket = await this.prisma.ticket.findUnique({
@@ -36,16 +42,15 @@ export class TicketsService {
   }
 
   async create(salonId: string, encaisseParId: string, dto: CreateTicketDto) {
-    const session = await this.prisma.cashSession.findFirst({
-      where: { salonId, fermeLe: null },
-    });
+    const [session, coiffeur] = await Promise.all([
+      this.prisma.cashSession.findFirst({ where: { salonId, fermeLe: null } }),
+      this.prisma.user.findFirst({
+        where: { id: dto.coiffeurId, role: 'coiffeur', actif: true },
+      }),
+    ]);
     if (!session) {
       throw new ConflictException('Aucune session de caisse ouverte');
     }
-
-    const coiffeur = await this.prisma.user.findFirst({
-      where: { id: dto.coiffeurId, role: 'coiffeur', actif: true },
-    });
     if (!coiffeur) {
       throw new BadRequestException(
         'Le ticket doit être rattaché à un coiffeur actif',
@@ -73,12 +78,23 @@ export class TicketsService {
       include: TICKET_INCLUDE,
     });
 
+    if (dto.items?.length) {
+      // Résolution des prix en parallèle (lectures indépendantes), puis
+      // insertion groupée — un seul aller-retour réseau côté caisse au lieu
+      // d'un appel par article.
+      const rows = await Promise.all(
+        dto.items.map((item) => this.resolveItemData(item)),
+      );
+      await this.prisma.ticketItem.createMany({
+        data: rows.map((row) => ({ ticketId: ticket.id, ...row })),
+      });
+      return this.recomputeTotals(ticket.id);
+    }
+
     return ticket;
   }
 
-  async addItem(ticketId: string, dto: AddTicketItemDto) {
-    const ticket = await this.assertOuvert(ticketId);
-
+  private async resolveItemData(dto: AddTicketItemDto) {
     if (!dto.serviceId && !dto.productId) {
       throw new BadRequestException('serviceId ou productId requis');
     }
@@ -106,16 +122,22 @@ export class TicketsService {
       prixUnitaire = product.prixVente ?? 0;
     }
 
+    return {
+      serviceId: dto.serviceId,
+      productId: dto.productId,
+      libelle,
+      prixUnitaire,
+      quantite,
+      total: prixUnitaire * quantite,
+    };
+  }
+
+  async addItem(ticketId: string, dto: AddTicketItemDto) {
+    const ticket = await this.assertOuvert(ticketId);
+    const data = await this.resolveItemData(dto);
+
     await this.prisma.ticketItem.create({
-      data: {
-        ticketId: ticket.id,
-        serviceId: dto.serviceId,
-        productId: dto.productId,
-        libelle,
-        prixUnitaire,
-        quantite,
-        total: prixUnitaire * quantite,
-      },
+      data: { ticketId: ticket.id, ...data },
     });
 
     return this.recomputeTotals(ticket.id);
@@ -156,8 +178,9 @@ export class TicketsService {
     }
 
     const actorPlafond = await this.getRemisePlafond(actor.role);
+    let autorisePar: { id: string; nom: string; role: string } | undefined;
     if (pourcentEffectif > actorPlafond) {
-      await this.assertEscalation(dto.authorization, pourcentEffectif);
+      autorisePar = await this.assertEscalation(dto.authorization, pourcentEffectif);
     }
 
     const total = Math.max(0, ticket.sousTotal - remiseMontant);
@@ -165,6 +188,21 @@ export class TicketsService {
     await this.prisma.ticket.update({
       where: { id: ticketId },
       data: { remiseMontant, remiseMotif: dto.motif, total },
+    });
+
+    // CDC §2.3 : le journal conserve l'identité du valideur en cas d'escalade.
+    await this.audit.record({
+      auteurId: actor.id,
+      action: 'remise',
+      entite: 'ticket',
+      entiteId: ticketId,
+      avant: { remiseMontant: ticket.remiseMontant, remiseMotif: ticket.remiseMotif },
+      apres: {
+        remiseMontant,
+        remiseMotif: dto.motif,
+        pourcentEffectif: Math.round(pourcentEffectif * 10) / 10,
+        autorisePar,
+      },
     });
 
     return this.findOne(ticketId);
@@ -179,83 +217,35 @@ export class TicketsService {
       );
     }
 
-    const succeeded = dto.methode === 'especes';
+    if (dto.methode === 'wave' || dto.methode === 'orange_money') {
+      // Intention créée chez UnitechPay ; confirmation réelle via webhook ou
+      // réconciliation active — voir PaymentsService.
+      const { payment, launchUrl, qr } = await this.paymentsService.createIntent(
+        ticketId,
+        dto.methode,
+        dto.customerPhone,
+      );
+      return { ticket: await this.findOne(ticketId), payment, launchUrl, qr };
+    }
 
+    if (dto.methode === 'carte' || dto.methode === 'free_money') {
+      throw new BadRequestException(
+        `Moyen de paiement "${dto.methode}" non disponible pour l'instant`,
+      );
+    }
+
+    // Espèces : encaissement interne immédiat (CDC §5.1), pas de prestataire externe.
     const payment = await this.prisma.payment.create({
       data: {
         ticketId,
         methode: dto.methode,
         montant: dto.montant,
-        statut: succeeded ? 'succeeded' : 'pending',
-        confirmeLe: succeeded ? new Date() : null,
+        statut: 'succeeded',
+        confirmeLe: new Date(),
       },
     });
 
-    if (!succeeded) {
-      // Wave/Orange Money/Free Money/carte : intention créée, confirmation
-      // réelle via webhook — lot L4 Paiements Sénégal.
-      return { ticket: await this.findOne(ticketId), payment };
-    }
-
-    await this.prisma.$transaction(async (tx) => {
-      await tx.ticket.update({
-        where: { id: ticketId },
-        data: { statut: 'paye', payeLe: new Date() },
-      });
-
-      const items = await tx.ticketItem.findMany({ where: { ticketId } });
-      for (const item of items) {
-        if (!item.serviceId) continue;
-        const consumed = await tx.serviceProduct.findMany({
-          where: { serviceId: item.serviceId },
-        });
-        for (const c of consumed) {
-          await tx.product.update({
-            where: { id: c.productId },
-            data: { quantite: { decrement: c.quantiteConsommee * item.quantite } },
-          });
-          await tx.stockMovement.create({
-            data: {
-              productId: c.productId,
-              type: 'sortie',
-              quantite: c.quantiteConsommee * item.quantite,
-              ticketId,
-              motif: `Encaissement ticket ${ticket.numero}`,
-            },
-          });
-        }
-      }
-
-      if (ticket.clientId) {
-        // Points crédités uniquement après paiement confirmé (CDC §4.5) —
-        // 1 point / 100 F, paliers Bronze/Argent(200pts)/Or(500pts).
-        const pointsGagnes = Math.floor(ticket.total / 100);
-        const account = await tx.loyaltyAccount.findUnique({
-          where: { clientId: ticket.clientId },
-        });
-        if (account) {
-          const points = account.points + pointsGagnes;
-          const palier = points >= 500 ? 'or' : points >= 200 ? 'argent' : 'bronze';
-          await tx.loyaltyAccount.update({
-            where: { clientId: ticket.clientId },
-            data: {
-              points,
-              palier,
-              totalDepense: { increment: ticket.total },
-              derniereVisite: new Date(),
-            },
-          });
-          await tx.loyaltyTransaction.create({
-            data: {
-              clientId: ticket.clientId,
-              ticketId,
-              type: 'gain',
-              points: pointsGagnes,
-            },
-          });
-        }
-      }
-    });
+    await this.paymentsService.confirmTicketPayment(ticketId);
 
     return {
       ticket: await this.findOne(ticketId),
@@ -264,12 +254,22 @@ export class TicketsService {
     };
   }
 
-  async cancel(ticketId: string, dto: CancelTicketDto) {
+  async cancel(ticketId: string, actor: AuthenticatedUser, dto: CancelTicketDto) {
     const ticket = await this.assertOuvert(ticketId);
     await this.prisma.ticket.update({
       where: { id: ticket.id },
       data: { statut: 'annule', remiseMotif: dto.motif },
     });
+
+    await this.audit.record({
+      auteurId: actor.id,
+      action: 'annulation_ticket',
+      entite: 'ticket',
+      entiteId: ticketId,
+      avant: { statut: ticket.statut },
+      apres: { statut: 'annule', motif: dto.motif },
+    });
+
     return this.findOne(ticketId);
   }
 
@@ -285,8 +285,10 @@ export class TicketsService {
   }
 
   private async recomputeTotals(ticketId: string) {
-    const items = await this.prisma.ticketItem.findMany({ where: { ticketId } });
-    const ticket = await this.prisma.ticket.findUniqueOrThrow({ where: { id: ticketId } });
+    const [items, ticket] = await Promise.all([
+      this.prisma.ticketItem.findMany({ where: { ticketId } }),
+      this.prisma.ticket.findUniqueOrThrow({ where: { id: ticketId } }),
+    ]);
     const sousTotal = items.reduce((sum, item) => sum + item.total, 0);
     const total = Math.max(0, sousTotal - ticket.remiseMontant);
 
@@ -310,7 +312,7 @@ export class TicketsService {
   private async assertEscalation(
     authorization: ApplyDiscountDto['authorization'],
     pourcentEffectif: number,
-  ) {
+  ): Promise<{ id: string; nom: string; role: string }> {
     if (!authorization) {
       throw new ForbiddenException(
         'Remise au-delà du plafond — autorisation d\'un gérant ou admin requise',
@@ -336,5 +338,7 @@ export class TicketsService {
         `${approver.nom} n'est pas habilité à autoriser une remise de ${pourcentEffectif.toFixed(0)} %`,
       );
     }
+
+    return { id: approver.id, nom: approver.nom, role: approver.role };
   }
 }

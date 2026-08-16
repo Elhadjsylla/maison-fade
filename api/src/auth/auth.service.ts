@@ -9,6 +9,7 @@ import * as argon2 from 'argon2';
 import { randomBytes } from 'crypto';
 import { Device, User } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { AuditService } from '../audit/audit.service';
 import { LoginDto } from './dto/login.dto';
 import { RefreshDto } from './dto/refresh.dto';
 import { JwtPayload } from './auth.types';
@@ -28,6 +29,7 @@ export class AuthService {
     private readonly prisma: PrismaService,
     private readonly jwt: JwtService,
     private readonly config: ConfigService,
+    private readonly audit: AuditService,
   ) {
     this.maxFailedAttempts = Number(
       this.config.get('AUTH_MAX_FAILED_ATTEMPTS') ?? 5,
@@ -51,10 +53,17 @@ export class AuthService {
     // Réponse volontairement identique (utilisateur inconnu vs mauvais secret)
     // pour ne pas révéler l'existence d'un compte.
     if (!user || !user.actif) {
+      await this.audit.record({
+        auteurId: user?.id ?? null,
+        action: 'connexion_echouee',
+        entite: 'user',
+        entiteId: user?.id ?? null,
+        apres: { login: dto.login, raison: !user ? 'compte_inconnu' : 'compte_desactive' },
+      });
       throw new UnauthorizedException('Identifiants invalides');
     }
 
-    this.assertNotLocked(user);
+    await this.assertNotLocked(user);
 
     let device = await this.prisma.device.findUnique({
       where: { empreinte: dto.deviceId },
@@ -63,7 +72,7 @@ export class AuthService {
     if (dto.pin) {
       // PIN uniquement autorisé sur un appareil déjà enregistré et approuvé.
       if (!device || device.userId !== user.id || !device.approuve) {
-        await this.registerFailedAttempt(user);
+        await this.registerFailedAttempt(user, 'appareil_non_approuve');
         throw new UnauthorizedException(
           'PIN refusé sur cet appareil — utilisez votre mot de passe',
         );
@@ -71,7 +80,7 @@ export class AuthService {
       const valid =
         user.pinHash && (await argon2.verify(user.pinHash, dto.pin));
       if (!valid) {
-        await this.registerFailedAttempt(user);
+        await this.registerFailedAttempt(user, 'pin_invalide');
         throw new UnauthorizedException('Identifiants invalides');
       }
     } else {
@@ -79,7 +88,7 @@ export class AuthService {
         user.passwordHash &&
         (await argon2.verify(user.passwordHash, dto.password!));
       if (!valid) {
-        await this.registerFailedAttempt(user);
+        await this.registerFailedAttempt(user, 'mot_de_passe_invalide');
         throw new UnauthorizedException('Identifiants invalides');
       }
       // Appareil inconnu : on l'enregistre, en attente d'approbation admin
@@ -106,6 +115,15 @@ export class AuthService {
         verrouilleJusqua: null,
         dernierAcces: new Date(),
       },
+    });
+
+    await this.audit.record({
+      auteurId: user.id,
+      action: 'connexion_reussie',
+      entite: 'user',
+      entiteId: user.id,
+      apres: { login: user.login, role: user.role },
+      deviceId: dto.deviceId,
     });
 
     return this.issueTokens(user, device);
@@ -141,15 +159,22 @@ export class AuthService {
     });
   }
 
-  private assertNotLocked(user: User) {
+  private async assertNotLocked(user: User) {
     if (user.verrouilleJusqua && user.verrouilleJusqua > new Date()) {
+      await this.audit.record({
+        auteurId: user.id,
+        action: 'connexion_echouee',
+        entite: 'user',
+        entiteId: user.id,
+        apres: { login: user.login, raison: 'compte_verrouille' },
+      });
       throw new UnauthorizedException(
         `Compte verrouillé jusqu'à ${user.verrouilleJusqua.toISOString()}`,
       );
     }
   }
 
-  private async registerFailedAttempt(user: User): Promise<void> {
+  private async registerFailedAttempt(user: User, raison: string): Promise<void> {
     const attempts = user.echecsConnexion + 1;
     const locked = attempts >= this.maxFailedAttempts;
 
@@ -161,6 +186,14 @@ export class AuthService {
           ? new Date(Date.now() + this.lockoutMinutes * 60_000)
           : user.verrouilleJusqua,
       },
+    });
+
+    await this.audit.record({
+      auteurId: user.id,
+      action: 'connexion_echouee',
+      entite: 'user',
+      entiteId: user.id,
+      apres: { login: user.login, raison, verrouille: locked },
     });
   }
 

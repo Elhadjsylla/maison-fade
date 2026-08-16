@@ -87,6 +87,8 @@ model Salon {
   devise     String    @default("XOF")
   fuseau     String    @default("Africa/Dakar")
   logoUrl    String?   @map("logo_url")
+  ninea      String?
+  raisonSociale String? @map("raison_sociale")
   creeLe     DateTime  @default(now()) @map("cree_le")
   archivedAt DateTime? @map("archived_at")
 
@@ -186,6 +188,7 @@ model Attendance {
   retardMin    Int       @default(0) @map("retard_min")
   source       String    @default("app")
 
+  @@unique([userId, date])
   @@map("attendance")
 }
 
@@ -451,6 +454,7 @@ model Commission {
   statut   CommissionStatut  @default(due)
   verseLe  DateTime?         @map("verse_le")
 
+  @@unique([userId, periode])
   @@map("commissions")
 }
 
@@ -484,7 +488,18 @@ model AuditLog {
   empreinte           String
   empreintePrecedente String?  @map("empreinte_precedente")
 
+  @@index([horodatage])
   @@map("audit_log")
+}
+
+// Tête de chaîne isolée dans sa propre ligne (verrouillée via SELECT ... FOR
+// UPDATE à chaque écriture) — évite que deux écritures concurrentes du journal
+// se réfèrent au même bloc précédent et forment une chaîne fourchue.
+model AuditChainHead {
+  id                String  @id @default("default")
+  derniereEmpreinte String? @map("derniere_empreinte")
+
+  @@map("audit_chain_head")
 }
 
 model Setting {

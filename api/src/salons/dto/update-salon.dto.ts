@@ -26,4 +26,12 @@ export class UpdateSalonDto {
   @IsOptional()
   @IsString()
   logoUrl?: string;
+
+  @IsOptional()
+  @IsString()
+  ninea?: string;
+
+  @IsOptional()
+  @IsString()
+  raisonSociale?: string;
 }

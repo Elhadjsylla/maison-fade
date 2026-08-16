@@ -1,16 +1,23 @@
 import {
   ConflictException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { randomUUID } from 'crypto';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { AuditService } from '../audit/audit.service';
 import { CreateClientDto } from './dto/create-client.dto';
 import { UpdateClientDto } from './dto/update-client.dto';
+import type { AuthenticatedUser } from '../auth/auth.types';
 
 @Injectable()
 export class ClientsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly audit: AuditService,
+  ) {}
 
   search(q?: string) {
     return this.prisma.client.findMany({
@@ -102,5 +109,68 @@ export class ClientsService {
     });
 
     return { ...account, transactions };
+  }
+
+  // Droit d'accès (CDC §10, loi sénégalaise n° 2008-12) : toutes les données
+  // personnelles détenues sur ce client, en un seul export.
+  async exportData(clientId: string, actor: AuthenticatedUser) {
+    const client = await this.findOne(clientId);
+    const [loyaltyTransactions, tickets, appointments, reviews] = await Promise.all([
+      this.prisma.loyaltyTransaction.findMany({ where: { clientId }, orderBy: { creeLe: 'desc' } }),
+      this.prisma.ticket.findMany({
+        where: { clientId },
+        include: { items: true },
+        orderBy: { creeLe: 'desc' },
+      }),
+      this.prisma.appointment.findMany({ where: { clientId }, orderBy: { debut: 'desc' } }),
+      this.prisma.review.findMany({ where: { clientId }, orderBy: { publieLe: 'desc' } }),
+    ]);
+
+    await this.audit.record({
+      auteurId: actor.id,
+      action: 'export_donnees_client',
+      entite: 'client',
+      entiteId: clientId,
+      apres: { demandePar: actor.nom },
+    });
+
+    return { client, loyaltyTransactions, tickets, appointments, reviews };
+  }
+
+  // Droit de suppression (CDC §10) — anonymise l'identité du client (nom,
+  // téléphone, notes, préférences) tout en conservant les tickets/mouvements
+  // de fidélité déjà émis : ce sont des pièces comptables soumises à une
+  // conservation légale de 10 ans (CDC §4.4/§10), pas des données
+  // personnelles au sens strict une fois l'identité effacée. Réservé à
+  // l'admin — action irréversible.
+  async erase(clientId: string, actor: AuthenticatedUser) {
+    if (actor.role !== 'admin') {
+      throw new ForbiddenException('Seul un administrateur peut effacer une fiche client');
+    }
+    const client = await this.findOne(clientId);
+
+    const anonymized = await this.prisma.client.update({
+      where: { id: clientId },
+      data: {
+        nom: 'Client supprimé',
+        telephone: `supprime-${randomUUID()}`,
+        notes: null,
+        preferences: Prisma.JsonNull,
+        coiffeurPrefereId: null,
+        consentementSms: false,
+        archivedAt: new Date(),
+      },
+    });
+
+    await this.audit.record({
+      auteurId: actor.id,
+      action: 'suppression_client',
+      entite: 'client',
+      entiteId: clientId,
+      avant: { nom: client.nom, telephone: client.telephone },
+      apres: { nom: 'Client supprimé' },
+    });
+
+    return anonymized;
   }
 }
