@@ -2307,7 +2307,13 @@ function initV2(){
 ACT_TYPE.auth = ['🔐','Session','#F1ECF0'];
 
 // Backend réel (API NestJS) — voir api/README ou api/.env pour le lancer.
-const API_BASE = 'http://localhost:3000/api/v1';
+// En local (localhost/127.0.0.1) on cible le serveur de dev ; en production
+// (déployé sur Vercel) on cible l'API hébergée sur Railway. À mettre à jour
+// avec la vraie URL Railway une fois le service créé (Settings > Networking
+// > Generate Domain), puis redéployer sur Vercel.
+const API_BASE = ['localhost','127.0.0.1'].includes(location.hostname)
+  ? 'http://localhost:3000/api/v1'
+  : 'https://maison-fade-api-production.up.railway.app/api/v1';
 let authToken = null;
 
 // Helper réseau commun — pose l'Authorization, uniformise les erreurs

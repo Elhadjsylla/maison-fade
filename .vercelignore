@@ -1,0 +1,13 @@
+# Vercel ne sert que le frontend statique (index.html, js/, css/, logo/) —
+# tout le reste (backend, tests, documents internes) reste hors du déploiement.
+api/
+e2e/
+node_modules/
+test-results/
+playwright-report/
+.claude/
+CDC-Maison-Fade.docx
+salon-coiffure-v3.html
+playwright.config.ts
+package.json
+package-lock.json
