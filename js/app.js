@@ -1923,8 +1923,8 @@ async function renderTeamPointagePanel(host){
     host.innerHTML = `
       <div class="card" style="padding:20px;margin-bottom:16px">
         <div class="section-title" style="margin:0 0 14px">Pointage de l'équipe — aujourd'hui</div>
-        <table class="tbl"><thead><tr><th>Coiffeur</th><th>Arrivée</th><th>Retard</th><th>Départ</th></tr></thead>
-          <tbody>${teamRows}</tbody></table>
+        <div style="overflow-x:auto"><table class="tbl"><thead><tr><th>Coiffeur</th><th>Arrivée</th><th>Retard</th><th>Départ</th></tr></thead>
+          <tbody>${teamRows}</tbody></table></div>
       </div>
       <div class="card" style="padding:16px 20px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
         <div>
@@ -2022,8 +2022,8 @@ async function renderTeamCommissionsView(host){
           <div class="section-title" style="margin:0">Commissions — ${commissionPeriod}</div>
           <button class="btn btn-plum" style="padding:8px 14px" onclick="generateCommissions()">Générer pour la période</button>
         </div>
-        <table class="tbl"><thead><tr><th>Coiffeur</th><th>CA encaissé</th><th>Taux</th><th>Montant</th><th>Statut</th><th></th></tr></thead>
-          <tbody>${rows}</tbody></table>
+        <div style="overflow-x:auto"><table class="tbl"><thead><tr><th>Coiffeur</th><th>CA encaissé</th><th>Taux</th><th>Montant</th><th>Statut</th><th></th></tr></thead>
+          <tbody>${rows}</tbody></table></div>
         <div style="font-size:12px;color:var(--muted);margin-top:12px">Le taux modifié s'applique immédiatement au calcul affiché. « Générer » fige le montant de la période ; « Marquer versée » verrouille définitivement le taux et le montant de cette période.</div>
       </div>`;
   }catch(err){
