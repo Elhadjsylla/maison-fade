@@ -2724,7 +2724,20 @@ async function tryLogin(){
     logAct('auth', a.name, 'Connexion', roleOf().name);
     toast(`Bonjour ${a.name.split(' ')[0]} · profil ${roleOf().name}`);
   }catch(err){
-    authError('Serveur API injoignable (http://localhost:3000). Vérifiez qu\'il tourne.');
+    // Le message affiché citait toujours "http://localhost:3000", même en
+    // production où API_BASE pointe vers Railway (CDC — jamais mentir sur
+    // l'environnement réel à l'utilisateur). On distingue maintenant une
+    // vraie panne réseau (fetch n'a pas pu joindre l'API du tout) d'une
+    // erreur survenue après une connexion déjà réussie (ex. chargement des
+    // données du salon) : cette dernière renvoyait le même message trompeur
+    // alors que le compte, lui, était bien authentifié.
+    if(!navigator.onLine){
+      authError('Pas de connexion internet. Vérifiez votre réseau puis réessayez.');
+    } else if(err instanceof TypeError){
+      authError('Serveur injoignable pour le moment. Réessayez dans un instant.');
+    } else {
+      authError(err.message || 'Une erreur est survenue après la connexion. Réessayez.');
+    }
   }finally{
     if(btn){ btn.disabled = false; }
   }
