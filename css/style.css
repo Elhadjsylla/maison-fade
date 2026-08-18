@@ -8,6 +8,14 @@
   --shadow:0 1px 2px rgba(46,26,47,.04),0 8px 24px rgba(46,26,47,.06);
   --shadow-lg:0 24px 60px rgba(46,26,47,.28);
   --r:16px;
+  /* Palette d'identité par catégorie (Prestations) — cycle de 8 teintes
+     assignées par ordre de catégorie, cf. CAT_PALETTE dans app.js. */
+  --rose-soft:#F7E3E8; --rose-text:#B23A5C;
+  --sage-soft:#E5F0E0; --sage-text:#4B7A3D;
+  --violet-soft:#EDE4F5; --violet-text:#7A4FA8;
+  --terra-soft:#F6E6DA; --terra-text:#B15A2E;
+  --teal-soft:#DEF0EE; --teal-text:#1F8478;
+  --indigo-soft:#E3E7F7; --indigo-text:#3D4FA0;
 }
 *{box-sizing:border-box;margin:0;padding:0}
 html,body{height:100%}
@@ -146,8 +154,8 @@ input,select{font-family:inherit;font-size:16px}
 .serv-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:18px}
 .serv-empty{grid-column:1/-1;text-align:center;padding:56px 20px;color:var(--muted);font-size:13.5px}
 .serv-empty .ic{font-size:32px;line-height:1;display:block;margin-bottom:10px;opacity:.6}
-.serv-card{padding:20px;display:flex;flex-direction:column;transition:.2s;position:relative;overflow:hidden}
-.serv-card::before{content:"";position:absolute;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,var(--gold),var(--gold-2));transform:scaleX(0);transform-origin:left;transition:transform .25s}
+.serv-card{--accent:var(--gold-text);padding:20px;display:flex;flex-direction:column;transition:.2s;position:relative;overflow:hidden}
+.serv-card::before{content:"";position:absolute;top:0;left:0;right:0;height:3px;background:var(--accent);transform:scaleX(0);transform-origin:left;transition:transform .25s}
 .serv-card:hover{transform:translateY(-4px);box-shadow:0 18px 38px rgba(46,26,47,.12);border-color:var(--gold-soft)}
 .serv-card:hover::before{transform:scaleX(1)}
 .serv-head{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:14px}
@@ -358,6 +366,12 @@ input,select{font-family:inherit;font-size:16px}
   --gold-soft:#3E3118; --green-soft:#16311F;
   --gold-text:#E0B45A; --green-text:#4CB885;
   --danger-soft:#3A2020; --info-soft:#182B3A; --warn-soft:#372C13;
+  --rose-soft:#3A2028; --rose-text:#E38CA6;
+  --sage-soft:#1E301A; --sage-text:#8ED17B;
+  --violet-soft:#2E2338; --violet-text:#C6A6E8;
+  --terra-soft:#3A2618; --terra-text:#E8A375;
+  --teal-soft:#163330; --teal-text:#5FD1C4;
+  --indigo-soft:#1E2438; --indigo-text:#9AA8E8;
   --shadow:0 1px 2px rgba(0,0,0,.35),0 8px 24px rgba(0,0,0,.4);
   --shadow-lg:0 24px 60px rgba(0,0,0,.6);
 }

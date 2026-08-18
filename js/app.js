@@ -147,12 +147,16 @@ function renderServices(){
     g.innerHTML = `<div class="serv-empty"><span class="ic">✂️</span>Aucune prestation dans cette catégorie.</div>`;
     return;
   }
+  // Chaque catégorie a sa propre teinte (badge + liseré au survol) — donne
+  // une identité visuelle immédiate en changeant d'onglet.
+  const [bgVar, textVar] = CATS.find(c=>c.id===currentCat)?.accent || CAT_PALETTE[0];
   list.forEach(s=>{
     const card=document.createElement('div');
     card.className='serv-card card';
+    card.style.setProperty('--accent', `var(${textVar})`);
     card.innerHTML=`
       <div class="serv-head">
-        <span class="serv-emoji">${s.e}</span>
+        <span class="serv-emoji" style="background:var(${bgVar})">${s.e}</span>
         ${canEdit?`<button class="x-btn edit-btn" title="Modifier la prestation" aria-label="Modifier la prestation">✎</button>`:''}
       </div>
       <div class="serv-name">${s.name}</div>
@@ -2552,13 +2556,20 @@ async function printReceipt(ticketId){
   }
 }
 
+// Identité visuelle par catégorie (page Prestations) — cycle de teintes
+// assignées par ordre d'affichage, cf. le même cycle défini en CSS (:root).
+const CAT_PALETTE = [
+  ['--gold-soft','--gold-text'], ['--rose-soft','--rose-text'], ['--sage-soft','--sage-text'],
+  ['--info-soft','--info'], ['--violet-soft','--violet-text'], ['--terra-soft','--terra-text'],
+  ['--teal-soft','--teal-text'], ['--indigo-soft','--indigo-text'],
+];
 // Catalogue réel (services + catégories) — remplace les tableaux figés.
 async function fetchCatalogue(){
   const [cats, services] = await Promise.all([
     apiFetch('/service-categories'),
     apiFetch('/services'),
   ]);
-  CATS = cats.map(c=>({id:c.id, name:c.nom, emoji:c.emoji||'💈'}));
+  CATS = cats.map((c,i)=>({id:c.id, name:c.nom, emoji:c.emoji||'💈', accent:CAT_PALETTE[i%CAT_PALETTE.length]}));
   const emojiByCat = Object.fromEntries(CATS.map(c=>[c.id, c.emoji]));
   SERVICES = services.map(s=>({
     id:s.id, cat:s.categorieId, name:s.nom, desc:s.description||'',
