@@ -1812,7 +1812,10 @@ function formatAuditEntry(row){
   const meta = AUDIT_META[row.action] || {ic:'📝', label:row.action, tag:'grey'};
   const [what, sub, amt] = auditWhatSub(row);
   return {
-    t: new Date(row.horodatage).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}),
+    // horodatage vient du serveur en UTC (instant réel) — sans timeZone
+    // explicite, toLocaleTimeString rend l'heure du fuseau du navigateur/OS
+    // qui affiche l'écran, pas celle du salon (Dakar).
+    t: new Date(row.horodatage).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit',timeZone:'Africa/Dakar'}),
     action: row.action, ic: meta.ic, label: meta.label, tag: meta.tag,
     what, sub, amt, who: row.auteur?.nom || 'Système',
   };
