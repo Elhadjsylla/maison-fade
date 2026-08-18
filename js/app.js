@@ -142,7 +142,12 @@ function renderServices(){
   // l'administrateur côté serveur (services.ecrire) — le bouton n'apparaît
   // donc que pour ce rôle, pour éviter un PATCH qui échouerait en 403.
   const canEdit = session && session.role==='admin';
-  SERVICES.filter(s=>s.cat===currentCat).forEach(s=>{
+  const list = SERVICES.filter(s=>s.cat===currentCat);
+  if(!list.length){
+    g.innerHTML = `<div class="serv-empty"><span class="ic">✂️</span>Aucune prestation dans cette catégorie.</div>`;
+    return;
+  }
+  list.forEach(s=>{
     const card=document.createElement('div');
     card.className='serv-card card';
     card.innerHTML=`
@@ -151,7 +156,7 @@ function renderServices(){
         ${canEdit?`<button class="x-btn edit-btn" title="Modifier la prestation" aria-label="Modifier la prestation">✎</button>`:''}
       </div>
       <div class="serv-name">${s.name}</div>
-      <div class="serv-desc">${s.desc}</div>
+      ${s.desc?`<div class="serv-desc">${s.desc}</div>`:''}
       <div class="serv-meta">
         <span class="serv-price">${fmt(s.price)}</span>
         <span class="serv-dur">⏱ ${s.dur} min</span>
