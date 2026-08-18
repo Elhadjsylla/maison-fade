@@ -751,7 +751,7 @@ body.locked{overflow:hidden}
 .side-actions svg{width:16px;height:16px;stroke-width:2}
 
 /* comptes dans les paramètres */
-.acc{display:flex;align-items:center;gap:13px;padding:13px;border:1px solid var(--line);border-radius:14px;margin-bottom:10px}
+.acc{display:flex;align-items:center;flex-wrap:wrap;gap:13px;padding:13px;border:1px solid var(--line);border-radius:14px;margin-bottom:10px}
 .acc-id{flex:1;min-width:0}
 .acc-id .n{font-weight:700;font-size:13.5px}
 .acc-id .s{font-size:11.5px;color:var(--muted);margin-top:2px}

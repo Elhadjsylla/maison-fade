@@ -1752,6 +1752,7 @@ const AUDIT_META = {
   creation_compte:       {ic:'👤', label:'Compte créé',           tag:'green'},
   desactivation_compte:  {ic:'⛔', label:'Compte désactivé',      tag:'grey'},
   reactivation_compte:   {ic:'✅', label:'Compte réactivé',       tag:'green'},
+  modification_pin:      {ic:'🔑', label:'Code PIN modifié',      tag:'blue'},
 };
 const STOCK_MOVEMENT_LABEL = {entree:'Entrée de stock', sortie:'Sortie de stock', perte:'Perte déclarée', inventaire:'Inventaire'};
 function auditWhatSub(row){
@@ -1796,6 +1797,8 @@ function auditWhatSub(row){
       return [`Compte désactivé : ${ap.nom||''}`, ap.login||'', null];
     case 'reactivation_compte':
       return [`Compte réactivé : ${ap.nom||''}`, ap.login||'', null];
+    case 'modification_pin':
+      return [`Code PIN modifié : ${ap.nom||''}`, ap.login||'', null];
     default:
       return [row.action, '', null];
   }
@@ -2895,6 +2898,22 @@ async function restoreAccount(id){
     toast(err.message||'Impossible de réactiver ce compte');
   }
 }
+async function resetPinPrompt(id, nom){
+  const r = await openFormModal({
+    title:'Modifier le code PIN', confirmLabel:'Enregistrer',
+    message:`Nouveau code d'accès pour ${nom} (4 à 6 chiffres) — pris en compte dès sa prochaine connexion.`,
+    fields:[{id:'pin', label:'Nouveau code PIN', type:'password', placeholder:'4 à 6 chiffres'}],
+  });
+  if(!r) return;
+  const pin = r.pin.trim();
+  if(!/^\d{4,6}$/.test(pin)){ toast('Le code PIN doit contenir 4 à 6 chiffres'); return; }
+  try{
+    await apiFetch(`/users/${id}/pin`, {method:'PATCH', body:JSON.stringify({pin})});
+    toast('Code PIN mis à jour');
+  }catch(err){
+    toast(err.message||'Impossible de modifier le code PIN');
+  }
+}
 async function approveDevice(id){
   try{
     await apiFetch(`/devices/${id}/approve`, {method:'PATCH'});
@@ -2913,9 +2932,13 @@ function accountsHTML(){
     const isSelf = session && session.id===a.id;
     const statusTag = !a.actif ? '<span class="tag" style="margin-left:6px;background:var(--line-2);color:var(--muted)">Désactivé</span>' : '';
     const lastSeen = a.dernierAcces ? new Date(a.dernierAcces).toLocaleDateString('fr-FR') : 'Jamais connecté';
+    const safeNom = a.nom.replace(/'/g,"\\'");
+    // Le PIN se change indépendamment du statut actif/désactivé du compte —
+    // seule action encore utile quand le compte n'est pas soi-même.
+    const pinBtn = a.actif ? `<button class="btn btn-ghost" style="padding:8px 14px;font-size:12.5px" onclick="resetPinPrompt('${a.id}','${safeNom}')">Modifier le PIN</button>` : '';
     let action;
     if(isSelf) action = '<span class="tag green">Vous</span>';
-    else if(a.actif) action = `<button class="btn btn-ghost" style="padding:8px 14px;font-size:12.5px" onclick="archiveAccount('${a.id}','${a.nom.replace(/'/g,"\\'")}')">Désactiver</button>`;
+    else if(a.actif) action = `<button class="btn btn-ghost" style="padding:8px 14px;font-size:12.5px" onclick="archiveAccount('${a.id}','${safeNom}')">Désactiver</button>`;
     else action = `<button class="btn btn-ghost" style="padding:8px 14px;font-size:12.5px" onclick="restoreAccount('${a.id}')">Réactiver</button>`;
     return `<div class="acc">
         <span class="acc-av ${a.role}">${initials(a.nom)}</span>
@@ -2924,7 +2947,7 @@ function accountsHTML(){
           <div class="s">${roleName(a.role)} · identifiant <b>${a.login}</b></div>
         </div>
         <div class="acc-meta">Dernière connexion<br><b>${lastSeen}</b></div>
-        ${action}
+        <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end">${pinBtn}${action}</div>
       </div>`;
   }).join('');
   const devicesBlock = accessDevices.length ? `

@@ -8,6 +8,7 @@ import { PermissionsService } from '../common/permissions.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { UsersService } from './users.service';
 import { CreateUserDto } from './dto/create-user.dto';
+import { ResetPinDto } from './dto/reset-pin.dto';
 import type { AuthenticatedUser } from '../auth/auth.types';
 
 @Controller()
@@ -79,5 +80,15 @@ export class UsersController {
   @Permissions('users')
   restore(@Param('id') id: string, @CurrentUser() actor: AuthenticatedUser) {
     return this.users.restore(id, actor);
+  }
+
+  @Patch('users/:id/pin')
+  @Permissions('users')
+  resetPin(
+    @Param('id') id: string,
+    @Body() dto: ResetPinDto,
+    @CurrentUser() actor: AuthenticatedUser,
+  ) {
+    return this.users.resetPin(id, dto, actor);
   }
 }

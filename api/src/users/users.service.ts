@@ -8,6 +8,7 @@ import * as argon2 from 'argon2';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { CreateUserDto } from './dto/create-user.dto';
+import { ResetPinDto } from './dto/reset-pin.dto';
 import type { AuthenticatedUser } from '../auth/auth.types';
 
 // Gestion des comptes de l'équipe (CDC §2.2/§4.1), réservée au rôle disposant
@@ -119,6 +120,33 @@ export class UsersService {
       entiteId: userId,
       avant: { actif: false },
       apres: { actif: true, nom: user.nom, login: user.login },
+    });
+
+    return updated;
+  }
+
+  // Changement de PIN par un admin/gérant (CDC §2.2/§4.1) — ex. personne qui
+  // l'a oublié, ou premier réglage une fois l'appareil approuvé. Jamais de
+  // valeur en clair dans le journal d'audit.
+  async resetPin(userId: string, dto: ResetPinDto, actor: AuthenticatedUser) {
+    const user = await this.prisma.user.findFirst({
+      where: { id: userId, salonId: actor.salonId },
+    });
+    if (!user) throw new NotFoundException('Compte introuvable');
+
+    const pinHash = await argon2.hash(dto.pin, { type: argon2.argon2id });
+    const updated = await this.prisma.user.update({
+      where: { id: userId },
+      data: { pinHash },
+      select: { id: true, nom: true, login: true, role: true, actif: true },
+    });
+
+    await this.audit.record({
+      auteurId: actor.id,
+      action: 'modification_pin',
+      entite: 'user',
+      entiteId: userId,
+      apres: { nom: user.nom, login: user.login },
     });
 
     return updated;
