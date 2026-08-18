@@ -138,11 +138,18 @@ function renderCatTabs(containerId, active, onClick){
 function renderServices(){
   renderCatTabs('cat-tabs', currentCat, id=>{currentCat=id;renderServices();});
   const g=document.getElementById('serv-grid'); g.innerHTML='';
+  // La fiche prestation (nom/prix/durée/catégorie) n'est modifiable que par
+  // l'administrateur côté serveur (services.ecrire) — le bouton n'apparaît
+  // donc que pour ce rôle, pour éviter un PATCH qui échouerait en 403.
+  const canEdit = session && session.role==='admin';
   SERVICES.filter(s=>s.cat===currentCat).forEach(s=>{
     const card=document.createElement('div');
     card.className='serv-card card';
     card.innerHTML=`
-      <div class="serv-head"><span class="serv-emoji">${s.e}</span></div>
+      <div class="serv-head">
+        <span class="serv-emoji">${s.e}</span>
+        ${canEdit?`<button class="x-btn edit-btn" title="Modifier la prestation" aria-label="Modifier la prestation">✎</button>`:''}
+      </div>
       <div class="serv-name">${s.name}</div>
       <div class="serv-desc">${s.desc}</div>
       <div class="serv-meta">
@@ -154,8 +161,43 @@ function renderServices(){
       addToCart(s); ev.target.classList.add('added'); ev.target.innerHTML='✓ Ajouté';
       setTimeout(()=>{ev.target.classList.remove('added');ev.target.innerHTML='＋ Ajouter à la caisse';},1000);
     };
+    const editBtn = card.querySelector('.edit-btn');
+    if(editBtn) editBtn.onclick=(ev)=>{ ev.stopPropagation(); editServicePrompt(s.id); };
     g.appendChild(card);
   });
+}
+async function editServicePrompt(id){
+  const s = SERVICES.find(x=>x.id===id);
+  if(!s) return;
+  const r = await openFormModal({
+    title:`Modifier — ${s.name}`, confirmLabel:'Enregistrer',
+    fields:[
+      {id:'nom', label:'Nom de la prestation', value:s.name},
+      {id:'categorieId', label:'Catégorie', type:'select', value:s.cat,
+        options:CATS.map(c=>({value:c.id, label:c.name}))},
+      {id:'prix', label:'Prix (F)', type:'number', value:s.price, min:0, full:false},
+      {id:'dureeMin', label:'Durée (min)', type:'number', value:s.dur, min:1, full:false},
+    ],
+  });
+  if(!r || !r.nom.trim()) return;
+  try{
+    const updated = await apiFetch(`/services/${id}`, {method:'PATCH', body:JSON.stringify({
+      nom:r.nom.trim(), categorieId:r.categorieId, prix:+r.prix||0, dureeMin:Math.max(1,+r.dureeMin||1),
+    })});
+    const idx = SERVICES.findIndex(x=>x.id===id);
+    if(idx>=0){
+      const emojiByCat = Object.fromEntries(CATS.map(c=>[c.id, c.emoji]));
+      SERVICES[idx] = {
+        id:updated.id, cat:updated.categorieId, name:updated.nom, desc:updated.description||'',
+        price:updated.prix, dur:updated.dureeMin, e: emojiByCat[updated.categorieId]||'💈',
+      };
+    }
+    renderServices();
+    if(document.getElementById('view-caisse').classList.contains('active')) renderQuick();
+    toast(`${updated.nom} mise à jour`);
+  }catch(err){
+    toast(err.message||'Impossible de mettre à jour la prestation');
+  }
 }
 
 /* =================== RENDER: CAISSE =================== */
@@ -460,15 +502,56 @@ function renderTeam(){
     </div>`).join('');
 }
 function renderStock(){
+  // La fiche produit (nom/prix/catégorie) est réservée à gérant/admin côté
+  // serveur (stock.ecrire) — bouton masqué pour un coiffeur, qui garde
+  // uniquement « Mouvement » pour déclarer une consommation.
+  const canEdit = can('stock');
   document.getElementById('stock-tbody').innerHTML = STOCK.length ? STOCK.map(s=>{
     const st = s.quantite<=s.seuilCritique ? ['blue','⚠ À recommander']
              : s.quantite<=s.seuilBas      ? ['gold','Stock bas'] : ['green','En stock'];
+    const safeNom = s.nom.replace(/'/g,"\\'");
     return `<tr>
       <td><b>${s.nom}</b></td><td>${s.categorie||'—'}</td><td>${s.prixVente!=null?fmt(s.prixVente):'—'}</td>
       <td><b>${s.quantite}</b></td><td><span class="tag ${st[0]}">${st[1]}</span></td>
-      <td style="text-align:right"><button class="btn btn-ghost" style="padding:7px 12px" onclick="declareMovementPrompt('${s.id}','${s.nom.replace(/'/g,"\\'")}')">Mouvement</button></td>
+      <td style="text-align:right;white-space:nowrap">
+        ${canEdit?`<button class="btn btn-ghost" style="padding:7px 10px" onclick="editProductPrompt('${s.id}')" title="Modifier la fiche produit">✎</button>`:''}
+        <button class="btn btn-ghost" style="padding:7px 12px" onclick="declareMovementPrompt('${s.id}','${safeNom}')">Mouvement</button>
+      </td>
     </tr>`;
   }).join('') : `<tr><td colspan="6" style="text-align:center;padding:36px;color:var(--muted)">Aucun produit — ajoutez le premier avec « Nouveau produit ».</td></tr>`;
+}
+async function editProductPrompt(id){
+  const p = STOCK.find(x=>x.id===id);
+  if(!p) return;
+  const r = await openFormModal({
+    title:`Modifier — ${p.nom}`, confirmLabel:'Enregistrer',
+    fields:[
+      {id:'nom', label:'Nom du produit', value:p.nom},
+      {id:'categorie', label:'Catégorie', value:p.categorie||'', full:false},
+      {id:'prixVente', label:'Prix de vente (F)', type:'number', value:p.prixVente??0, min:0, full:false},
+      {id:'prixAchat', label:'Prix d\'achat (F)', type:'number', value:p.prixAchat??0, min:0, full:false},
+      {id:'seuilBas', label:'Seuil de stock bas', type:'number', value:p.seuilBas, min:0, full:false},
+      {id:'seuilCritique', label:'Seuil critique', type:'number', value:p.seuilCritique, min:0, full:false},
+      {id:'fournisseur', label:'Fournisseur (optionnel)', value:p.fournisseur||''},
+    ],
+  });
+  if(!r || !r.nom.trim()) return;
+  try{
+    // La quantité ne se modifie jamais ici : elle passe uniquement par
+    // « Mouvement » (POST /stock/movements), pour garder chaque changement tracé.
+    const updated = await apiFetch(`/stock/products/${id}`, {method:'PATCH', body:JSON.stringify({
+      nom:r.nom.trim(), categorie:r.categorie.trim()||undefined,
+      prixVente:+r.prixVente||0, prixAchat:+r.prixAchat||0,
+      seuilBas:+r.seuilBas||0, seuilCritique:+r.seuilCritique||0,
+      fournisseur:r.fournisseur.trim()||undefined,
+    })});
+    const idx = STOCK.findIndex(x=>x.id===id);
+    if(idx>=0) STOCK[idx] = updated;
+    renderStock();
+    toast(`${updated.nom} mis à jour`);
+  }catch(err){
+    toast(err.message||'Impossible de mettre à jour le produit');
+  }
 }
 async function fetchStock(){
   document.getElementById('stock-tbody').innerHTML = skeletonTableRows(6);
