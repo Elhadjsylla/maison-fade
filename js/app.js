@@ -110,6 +110,7 @@ const TITLES = {
   caisse:['Caisse','Encaissement et vente rapide'],
   clients:['Clients','Fichier et programme de fidélité'],
   team:['Équipe','Performance des coiffeurs'],
+  commissions:['Commissions','Taux par coiffeur, filtrable par mois'],
   stats:['Statistiques','Analyse de l\'activité'],
   stock:['Stock produits','Inventaire boutique'],
 };
@@ -1759,10 +1760,11 @@ function exportJournal(){
   }catch(e){ toast('Export indisponible dans cet aperçu'); }
 }
 
-/* ---------------- Pointage & commissions (CDC §4.6/§3.3) ---------------- */
+/* ---------------- Pointage (CDC §4.6/§3.3) ---------------- */
 // Panneau réel greffé en tête de l'écran Personnel — contenu différent selon
 // le rôle : un coiffeur pointe pour lui-même, gérant/admin voient l'équipe.
-let commissionPeriod = new Date().toISOString().slice(0,7);
+// Le détail des commissions (filtrable par mois, taux modifiable) vit dans
+// son propre menu — voir plus bas « Commissions (menu dédié) ».
 async function renderRealStaffPanel(){
   const host = document.getElementById('real-staff-panel');
   if(!session) return;
@@ -1775,9 +1777,10 @@ async function renderRealStaffPanel(){
 async function renderMyPointagePanel(host){
   host.innerHTML = `<div class="card" style="padding:20px">${skeletonCards(2)}</div>`;
   try{
+    const thisMonth = new Date().toISOString().slice(0,7);
     const [summary, commission] = await Promise.all([
       apiFetch('/me/attendance'),
-      apiFetch(`/me/commission?period=${commissionPeriod}`),
+      apiFetch(`/me/commission?period=${thisMonth}`),
     ]);
     const today = summary.jours.find(j=>new Date(j.date).toISOString().slice(0,10)===new Date().toISOString().slice(0,10));
     const pauses = today?.pauses||[];
@@ -1799,10 +1802,11 @@ async function renderMyPointagePanel(host){
           <button class="btn btn-ghost" onclick="punchAttendance('depart')" ${(!arrived||left||enPause)?'disabled':''}>Pointer le départ</button>
         </div>
         <div style="font-size:13px;color:var(--muted)">${statusTxt}</div>
-        <div style="display:flex;gap:28px;margin-top:18px;flex-wrap:wrap">
+        <div style="display:flex;gap:28px;margin-top:18px;flex-wrap:wrap;align-items:flex-end">
           <div><div style="font-weight:800;font-size:20px">${summary.heuresTotal} h</div><div style="font-size:11.5px;color:var(--muted)">Heures ce mois</div></div>
           <div><div style="font-weight:800;font-size:20px">${summary.retardsTotal} min</div><div style="font-size:11.5px;color:var(--muted)">Retards cumulés</div></div>
           <div><div style="font-weight:800;font-size:20px">${fmt(commission.montant)}</div><div style="font-size:11.5px;color:var(--muted)">Ma commission (${commission.taux}%) · ${commission.statut==='versee'?'versée':'due'}</div></div>
+          <button class="btn btn-ghost" style="padding:8px 14px" onclick="go('commissions')">Historique et détail →</button>
         </div>
       </div>`;
   }catch(err){
@@ -1821,10 +1825,7 @@ async function punchAttendance(action){
 async function renderTeamPointagePanel(host){
   host.innerHTML = `<div class="card" style="padding:20px">${skeletonCards(2)}</div>`;
   try{
-    const [team, commissions] = await Promise.all([
-      apiFetch('/staff/attendance'),
-      apiFetch(`/staff/commissions?period=${commissionPeriod}`),
-    ]);
+    const team = await apiFetch('/staff/attendance');
     const teamRows = team.map(({user,attendance:a})=>{
       const pauses = a?.pauses||[];
       const enPause = pauses.length>0 && !pauses[pauses.length-1].fin;
@@ -1836,39 +1837,133 @@ async function renderTeamPointagePanel(host){
       </tr>`;
     }).join('') || `<tr><td colspan="4" style="text-align:center;padding:20px;color:var(--muted)">Aucun coiffeur actif.</td></tr>`;
 
-    const commissionRows = commissions.map(c=>`
-      <tr>
-        <td><b>${c.nom}</b></td>
-        <td>${fmt(c.baseCa)}</td>
-        <td>${c.taux}%</td>
-        <td><b>${fmt(c.montant)}</b></td>
-        <td><span class="tag ${c.statut==='versee'?'green':'gold'}">${c.statut==='versee'?'Versée':'Due'}</span></td>
-        <td style="text-align:right">${c.statut!=='versee'&&c.genere?`<button class="btn btn-ghost" style="padding:6px 10px" onclick="markCommissionPaid('${c.id}')">Marquer versée</button>`:''}</td>
-      </tr>`).join('') || `<tr><td colspan="6" style="text-align:center;padding:20px;color:var(--muted)">Aucun coiffeur actif.</td></tr>`;
-
     host.innerHTML = `
       <div class="card" style="padding:20px;margin-bottom:16px">
         <div class="section-title" style="margin:0 0 14px">Pointage de l'équipe — aujourd'hui</div>
         <table class="tbl"><thead><tr><th>Coiffeur</th><th>Arrivée</th><th>Retard</th><th>Départ</th></tr></thead>
           <tbody>${teamRows}</tbody></table>
       </div>
+      <div class="card" style="padding:16px 20px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
+        <div>
+          <div style="font-weight:700">Commissions de l'équipe</div>
+          <div style="font-size:12px;color:var(--muted)">Consultez, filtrez par mois et ajustez le taux de chaque coiffeur.</div>
+        </div>
+        <button class="btn btn-plum" style="padding:8px 14px" onclick="go('commissions')">Ouvrir les commissions →</button>
+      </div>`;
+  }catch(err){
+    host.innerHTML = `<div class="card" style="padding:20px;color:var(--muted)">${err.message||'Données indisponibles'}</div>`;
+  }
+}
+
+/* ---------------- Commissions (menu dédié, CDC §4.6/§3.3) ----------------
+   Taux modifiable par coiffeur (s'applique en direct au calcul tant que la
+   commission n'est pas versée — verrouillée ensuite), filtrable par mois.
+   Un coiffeur ne voit que sa propre commission ; admin/gérant voient et
+   modifient toute l'équipe (portée déjà imposée côté serveur, cf. /me vs
+   /staff/commissions). */
+let commissionPeriod = new Date().toISOString().slice(0,7);
+function periodShift(period, delta){
+  const [y,m] = period.split('-').map(Number);
+  const d = new Date(Date.UTC(y, m-1+delta, 1));
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth()+1).padStart(2,'0')}`;
+}
+function commPeriodPicker(){
+  const isCurrent = commissionPeriod === new Date().toISOString().slice(0,7);
+  return `
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px;flex-wrap:wrap">
+      <button class="btn btn-ghost" style="padding:6px 10px" onclick="changeCommPeriod(periodShift(commissionPeriod,-1))" aria-label="Mois précédent">‹</button>
+      <input type="month" value="${commissionPeriod}" onchange="changeCommPeriod(this.value)" style="max-width:170px">
+      <button class="btn btn-ghost" style="padding:6px 10px" onclick="changeCommPeriod(periodShift(commissionPeriod,1))" aria-label="Mois suivant">›</button>
+      ${!isCurrent?`<button class="btn btn-ghost" style="padding:6px 10px" onclick="changeCommPeriod(new Date().toISOString().slice(0,7))">Ce mois-ci</button>`:''}
+    </div>`;
+}
+function changeCommPeriod(period){
+  if(!period) return;
+  commissionPeriod = period;
+  renderCommissionsView();
+}
+async function renderCommissionsView(){
+  const host = document.getElementById('commissions-panel');
+  if(!session || !host) return;
+  if(session.role==='coiffeur'){
+    await renderMyCommissionsView(host);
+  } else {
+    await renderTeamCommissionsView(host);
+  }
+}
+async function renderMyCommissionsView(host){
+  host.innerHTML = commPeriodPicker() + `<div class="card" style="padding:20px">${skeletonCards(2)}</div>`;
+  try{
+    const c = await apiFetch(`/me/commission?period=${commissionPeriod}`);
+    host.innerHTML = commPeriodPicker() + `
+      <div class="card" style="padding:20px">
+        <div class="section-title" style="margin:0 0 14px">Ma commission — ${commissionPeriod}</div>
+        <div style="display:flex;gap:28px;flex-wrap:wrap">
+          <div><div style="font-weight:800;font-size:22px">${fmt(c.baseCa)}</div><div style="font-size:11.5px;color:var(--muted)">CA encaissé</div></div>
+          <div><div style="font-weight:800;font-size:22px">${c.taux}%</div><div style="font-size:11.5px;color:var(--muted)">Taux appliqué</div></div>
+          <div><div style="font-weight:800;font-size:22px;color:var(--gold)">${fmt(c.montant)}</div><div style="font-size:11.5px;color:var(--muted)">Commission</div></div>
+        </div>
+        <div style="margin-top:16px">
+          <span class="tag ${c.statut==='versee'?'green':'gold'}">${c.statut==='versee'?`Versée le ${new Date(c.verseLe).toLocaleDateString('fr-FR')}`:'Due — pas encore versée'}</span>
+        </div>
+      </div>`;
+  }catch(err){
+    host.innerHTML = commPeriodPicker() + `<div class="card" style="padding:20px;color:var(--muted)">${err.message||'Commission indisponible'}</div>`;
+  }
+}
+async function renderTeamCommissionsView(host){
+  host.innerHTML = commPeriodPicker() + `<div class="card" style="padding:20px">${skeletonCards(2)}</div>`;
+  try{
+    const commissions = await apiFetch(`/staff/commissions?period=${commissionPeriod}`);
+    const rows = commissions.map(c=>`
+      <tr>
+        <td><b>${c.nom}</b></td>
+        <td>${fmt(c.baseCa)}</td>
+        <td>
+          <div style="display:flex;align-items:center;gap:6px">
+            <input type="number" min="0" max="100" value="${c.taux}" id="taux-${c.userId}"
+              style="width:64px;padding:4px 6px" ${c.statut==='versee'?'disabled title="Verrouillé : commission déjà versée"':''}
+              onkeydown="if(event.key==='Enter'){event.preventDefault();saveTaux('${c.userId}');}">
+            <span style="color:var(--muted)">%</span>
+            ${c.statut!=='versee'?`<button class="btn btn-ghost" style="padding:4px 8px" onclick="saveTaux('${c.userId}')">Enregistrer</button>`:''}
+          </div>
+        </td>
+        <td><b>${fmt(c.montant)}</b></td>
+        <td><span class="tag ${c.statut==='versee'?'green':'gold'}">${c.statut==='versee'?'Versée':'Due'}</span></td>
+        <td style="text-align:right">${c.statut!=='versee'&&c.genere?`<button class="btn btn-ghost" style="padding:6px 10px" onclick="markCommissionPaid('${c.id}')">Marquer versée</button>`:''}</td>
+      </tr>`).join('') || `<tr><td colspan="6" style="text-align:center;padding:20px;color:var(--muted)">Aucun coiffeur actif.</td></tr>`;
+
+    host.innerHTML = commPeriodPicker() + `
       <div class="card" style="padding:20px">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:10px">
           <div class="section-title" style="margin:0">Commissions — ${commissionPeriod}</div>
           <button class="btn btn-plum" style="padding:8px 14px" onclick="generateCommissions()">Générer pour la période</button>
         </div>
         <table class="tbl"><thead><tr><th>Coiffeur</th><th>CA encaissé</th><th>Taux</th><th>Montant</th><th>Statut</th><th></th></tr></thead>
-          <tbody>${commissionRows}</tbody></table>
+          <tbody>${rows}</tbody></table>
+        <div style="font-size:12px;color:var(--muted);margin-top:12px">Le taux modifié s'applique immédiatement au calcul affiché. « Générer » fige le montant de la période ; « Marquer versée » verrouille définitivement le taux et le montant de cette période.</div>
       </div>`;
   }catch(err){
-    host.innerHTML = `<div class="card" style="padding:20px;color:var(--muted)">${err.message||'Données indisponibles'}</div>`;
+    host.innerHTML = commPeriodPicker() + `<div class="card" style="padding:20px;color:var(--muted)">${err.message||'Données indisponibles'}</div>`;
+  }
+}
+async function saveTaux(userId){
+  const input = document.getElementById(`taux-${userId}`);
+  if(!input) return;
+  const taux = Math.min(100, Math.max(0, Math.round(+input.value||0)));
+  try{
+    await apiFetch(`/staff/profiles/${userId}`, {method:'PATCH', body:JSON.stringify({tauxCommission:taux})});
+    toast('Taux de commission mis à jour');
+    renderCommissionsView();
+  }catch(err){
+    toast(err.message||'Impossible de mettre à jour le taux');
   }
 }
 async function generateCommissions(){
   try{
     await apiFetch('/staff/commissions/generate', {method:'POST', body:JSON.stringify({periode:commissionPeriod})});
     toast('Commissions générées pour la période');
-    renderRealStaffPanel();
+    renderCommissionsView();
   }catch(err){
     toast(err.message||'Impossible de générer les commissions');
   }
@@ -1877,7 +1972,7 @@ async function markCommissionPaid(id){
   try{
     await apiFetch(`/staff/commissions/${id}/mark-paid`, {method:'PATCH'});
     toast('Commission marquée versée');
-    renderRealStaffPanel();
+    renderCommissionsView();
   }catch(err){
     toast(err.message||'Impossible de marquer la commission versée');
   }
@@ -2093,7 +2188,7 @@ function renderSettings(){
       PAY_METHODS.map(m=>row(m.name, m.tag, sw('p-'+m.id, CONFIG.pay[m.id]))).join(''))
     +
     sec('team','Équipe et commissions','Règles appliquées au calcul de la paie et aux alertes de supervision.',
-      row('Taux de commission','Part des recettes reversée à chaque coiffeur.',`<input type="number" id="s-comm" value="${CONFIG.commission}" min="0" max="60">`)+
+      row('Taux de commission par défaut','Utilisé à la création d\'un profil. Pour ajuster le taux de chaque coiffeur (et voir l\'effet en direct), ouvrez le menu <button onclick="closeModal(\'set-overlay\');go(\'commissions\')" style="color:var(--gold);font-weight:700;text-decoration:underline">Commissions</button>.',`<input type="number" id="s-comm" value="${CONFIG.commission}" min="0" max="60">`)+
       row('Seuil d\'alerte sur les remises','Au-delà de ce pourcentage des recettes, le coiffeur est signalé en rouge.',`<input type="number" id="s-dmax" value="${CONFIG.discountMax}" min="1" max="60">`)+
       row('Alerter sur les retards et absences','Signale les coiffeurs non pointés à l\'heure prévue.',sw('s-late',CONFIG.lateAlert)))
     +
@@ -2256,6 +2351,7 @@ go = function(v){
   document.querySelectorAll('#mnav button').forEach(b=>b.classList.toggle('on', b.dataset.view===v));
   if(v==='admin') renderAdmin();
   if(v==='team'){ fetchStaffTeam().then(renderStaff); renderRealStaffPanel(); }
+  if(v==='commissions') renderCommissionsView();
   if(v==='journal') fetchAuditLog();
   if(v==='rdv') fetchAppointments().catch(err=>toast(err.message||'Impossible de charger l\'agenda'));
   if(v==='stock') fetchStock();
@@ -2435,7 +2531,7 @@ function roleOf(){ return ROLES.find(r=>r.id===(session?session.role:'')) || ROL
 function roleName(id){ const r=ROLES.find(x=>x.id===id); return r?r.name:id; }
 function can(k){ return session ? !!roleOf().p[k] : false; }
 
-const VIEW_PERM = {rdv:'rdv', caisse:'caisse', clients:'clients', team:'perso',
+const VIEW_PERM = {rdv:'rdv', caisse:'caisse', clients:'clients', team:'perso', commissions:'perso',
                    stats:'stats', stock:'stock', admin:'admin360', journal:'journal'};
 const SET_PERM  = {salon:'params', horaires:'params', fidelite:'params', paiement:'params',
                    team:'params', stock:'params', acces:'users', apparence:null, raccourcis:null};

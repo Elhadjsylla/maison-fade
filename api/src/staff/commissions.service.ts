@@ -28,6 +28,22 @@ export class CommissionsService {
       this.prisma.commission.findUnique({ where: { userId_periode: { userId, periode } } }),
     ]);
 
+    // Une commission versée est figée : un changement de taux après coup ne
+    // doit pas réécrire l'historique de ce qui a déjà été payé.
+    if (stored?.statut === 'versee') {
+      return {
+        id: stored.id,
+        userId,
+        periode,
+        baseCa: stored.baseCa,
+        taux: stored.taux,
+        montant: stored.montant,
+        statut: stored.statut,
+        verseLe: stored.verseLe,
+        genere: true,
+      };
+    }
+
     const taux = profile?.tauxCommission ?? 15;
     const baseCa = agg._sum.total ?? 0;
     const montant = Math.round((baseCa * taux) / 100);
@@ -75,10 +91,26 @@ export class CommissionsService {
     const storedByUser = new Map(stored.map((s) => [s.userId, s]));
 
     return coiffeurs.map((c) => {
+      const row = storedByUser.get(c.id);
+      // Idem preview() : une commission versée reste figée sur les valeurs
+      // enregistrées au moment du versement.
+      if (row?.statut === 'versee') {
+        return {
+          id: row.id,
+          userId: c.id,
+          nom: c.nom,
+          periode,
+          baseCa: row.baseCa,
+          taux: row.taux,
+          montant: row.montant,
+          statut: row.statut,
+          verseLe: row.verseLe,
+          genere: true,
+        };
+      }
       const taux = tauxByUser.get(c.id) ?? 15;
       const baseCa = caByUser.get(c.id) ?? 0;
       const montant = Math.round((baseCa * taux) / 100);
-      const row = storedByUser.get(c.id);
       return {
         id: row?.id ?? null,
         userId: c.id,

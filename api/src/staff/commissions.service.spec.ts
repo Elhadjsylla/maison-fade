@@ -65,6 +65,21 @@ describe('CommissionsService', () => {
       expect(result.baseCa).toBe(0);
       expect(result.montant).toBe(0);
     });
+
+    it('reste figée sur les valeurs versées même si le taux a changé depuis', async () => {
+      // Le taux courant du profil a bougé à 25 % après le versement, qui
+      // avait eu lieu à 15 % — l'aperçu doit refléter ce qui a été payé, pas
+      // le taux actuel.
+      prisma.staffProfile.findUnique.mockResolvedValue({ tauxCommission: 25 });
+      prisma.ticket.aggregate.mockResolvedValue({ _sum: { total: 20000 } });
+      prisma.commission.findUnique.mockResolvedValue({
+        id: 'c1', baseCa: 10000, taux: 15, montant: 1500, statut: 'versee', verseLe: new Date('2026-08-05'),
+      });
+
+      const result = await service.preview('coiffeur-1', '2026-08');
+
+      expect(result).toMatchObject({ baseCa: 10000, taux: 15, montant: 1500, statut: 'versee', genere: true });
+    });
   });
 
   describe('generate', () => {
@@ -151,6 +166,21 @@ describe('CommissionsService', () => {
 
       expect(result).toEqual([]);
       expect(prisma.ticket.groupBy).not.toHaveBeenCalled();
+    });
+
+    it('fige la ligne d\'un coiffeur dont la commission est déjà versée', async () => {
+      prisma.user.findMany.mockResolvedValue([{ id: 'coiffeur-1', nom: 'Pa Laye' }]);
+      prisma.staffProfile.findMany.mockResolvedValue([{ userId: 'coiffeur-1', tauxCommission: 25 }]);
+      prisma.ticket.groupBy.mockResolvedValue([{ coiffeurId: 'coiffeur-1', _sum: { total: 20000 } }]);
+      prisma.commission.findMany.mockResolvedValue([
+        { id: 'c1', userId: 'coiffeur-1', baseCa: 10000, taux: 15, montant: 1500, statut: 'versee', verseLe: new Date('2026-08-05') },
+      ]);
+
+      const result = await service.previewAll('salon-1', '2026-08');
+
+      expect(result).toEqual([
+        expect.objectContaining({ userId: 'coiffeur-1', baseCa: 10000, taux: 15, montant: 1500, statut: 'versee', genere: true }),
+      ]);
     });
   });
 });
