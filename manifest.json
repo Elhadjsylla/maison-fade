@@ -1,0 +1,12 @@
+{
+  "name": "Maison Fade — Gestion du salon",
+  "short_name": "Maison Fade",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#FBF8F5",
+  "theme_color": "#2E1A2F",
+  "icons": [
+    { "src": "logo/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "logo/icon-512.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}
