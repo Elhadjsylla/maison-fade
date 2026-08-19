@@ -117,6 +117,12 @@ input,select{font-family:inherit;font-size:16px}
 .k-up{color:var(--green-text)} .k-dn{color:#C0504D}
 .dash-grid{display:grid;grid-template-columns:1.6fr 1fr;gap:18px}
 .mini-cal{padding:20px}
+/* Sans min-width:0, un enfant de grille ne rétrécit jamais sous la largeur
+   naturelle de son contenu (ex. un tableau large) — il pousse toute la
+   grille, donc toute la page, plus large que l'écran, au lieu de rester
+   dans son propre overflow-x:auto. Grilles de contenu/données uniquement —
+   pas .app ni #auth qui structurent l'écran et n'ont pas ce risque. */
+.dash-grid > *, .kpis > *, .st-grid > *, .team-grid > *{min-width:0}
 .agenda-row{display:flex;align-items:center;gap:14px;padding:12px 0;border-bottom:1px solid var(--line-2)}
 .agenda-row:last-child{border-bottom:none}
 .agenda-time{font-weight:800;font-size:13px;color:var(--plum);width:52px;flex-shrink:0}
