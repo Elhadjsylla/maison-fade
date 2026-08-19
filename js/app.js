@@ -2518,10 +2518,38 @@ const API_BASE = ['localhost','127.0.0.1'].includes(location.hostname)
   ? 'http://localhost:3000/api/v1'
   : 'https://maison-fade-production.up.railway.app/api/v1';
 let authToken = null;
+// Le token d'accès expire après 15 min (JWT_ACCESS_TTL) — refreshToken/
+// deviceId permettent de le renouveler en silence via POST /auth/refresh
+// (endpoint déjà prêt côté serveur, jamais appelé jusqu'ici) plutôt que de
+// laisser un « Unauthorized » brut planter l'écran dès qu'on revient sur
+// l'agenda ou qu'on encaisse plus de 15 min après la connexion.
+let refreshToken = null;
+let deviceId = null;
+let refreshInFlight = null;
+
+async function refreshSession(){
+  if(!refreshInFlight){
+    refreshInFlight = (async()=>{
+      if(!refreshToken || !deviceId) throw new Error('Pas de session à renouveler');
+      const res = await fetch(`${API_BASE}/auth/refresh`, {
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({deviceId, refreshToken}),
+      });
+      const body = await res.json().catch(()=>({}));
+      if(!res.ok) throw new Error(body.message || 'Session expirée');
+      authToken = body.accessToken;
+      refreshToken = body.refreshToken;
+    })().finally(()=>{ refreshInFlight = null; });
+  }
+  return refreshInFlight;
+}
 
 // Helper réseau commun — pose l'Authorization, uniformise les erreurs
-// {code,message} du backend (err.status = code HTTP).
-async function apiFetch(path, opts={}){
+// {code,message} du backend (err.status = code HTTP). Un 401 déclenche un
+// essai de renouvellement silencieux (une seule fois par appel) avant
+// d'abandonner et de renvoyer l'utilisateur à l'écran de connexion.
+async function apiFetch(path, opts={}, _retried=false){
   const res = await fetch(`${API_BASE}${path}`, {
     ...opts,
     headers: {
@@ -2532,6 +2560,18 @@ async function apiFetch(path, opts={}){
   });
   const body = await res.json().catch(()=>({}));
   if(!res.ok){
+    if(res.status===401 && !_retried && authToken){
+      try{
+        await refreshSession();
+        return apiFetch(path, opts, true);
+      }catch(refreshErr){
+        if(session) lockSession();
+        authError('Votre session a expiré. Reconnectez-vous.');
+        const err = new Error('Session expirée — reconnectez-vous.');
+        err.status = 401; err.body = body;
+        throw err;
+      }
+    }
     const err = new Error(body.message || `Erreur ${res.status}`);
     err.status = res.status; err.body = body;
     throw err;
@@ -2690,15 +2730,17 @@ async function tryLogin(){
     // de passe (cf. AuthService.login) — le code d'accès habituel (4-6
     // chiffres) reste envoyé comme PIN, tout le reste comme mot de passe.
     const isPin = /^\d{4,6}$/.test(p);
+    deviceId = `seed-device-${l}`;
     const res = await fetch(`${API_BASE}/auth/login`, {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({login: l, [isPin?'pin':'password']: p, deviceId: `seed-device-${l}`}),
+      body: JSON.stringify({login: l, [isPin?'pin':'password']: p, deviceId}),
     });
     const body = await res.json();
     if(!res.ok){ authError(body.message || 'Connexion refusée.'); return; }
 
     authToken = body.accessToken;
+    refreshToken = body.refreshToken;
     const meRes = await fetch(`${API_BASE}/me`, {
       headers: {Authorization: `Bearer ${authToken}`},
     });
@@ -2755,12 +2797,16 @@ async function tryLogin(){
 }
 function logout(){
   if(session) logAct('auth', session.name, 'Déconnexion', roleOf().name);
+  // Invalide le refresh token côté serveur (device.refreshTokenHash = null)
+  // avant de l'effacer localement — sinon un jeton copié avant la
+  // déconnexion resterait valable pour renouveler une session.
+  if(authToken) apiFetch('/auth/logout', {method:'POST'}).catch(()=>{});
   cart = []; currentClient = null; currentTicketId = null;
   document.getElementById('discount').value = 0;
   fillClientSelect(); renderLoyaltyChip(); renderTicket();
   closeStaff(); closeNotif(); closeCmdk();
   document.querySelectorAll('.overlay.show').forEach(o=>o.classList.remove('show'));
-  session = null;
+  session = null; authToken = null; refreshToken = null;
   lockApp();
 }
 function lockSession(){
