@@ -18,7 +18,7 @@
   --indigo-soft:#E3E7F7; --indigo-text:#3D4FA0;
 }
 *{box-sizing:border-box;margin:0;padding:0}
-html,body{height:100%}
+html,body{height:100%;overflow-x:hidden}
 body{
   font-family:'Manrope',system-ui,-apple-system,sans-serif;
   background:var(--surface); color:var(--ink);
@@ -70,7 +70,11 @@ input,select{font-family:inherit;font-size:16px}
 .user .u-name{font-size:13px;font-weight:700;color:#fff}
 .user .u-role{font-size:11px;color:#B79CB6}
 
-.main{overflow-y:auto;height:100vh}
+/* overflow-x explicite : sans lui, la règle CSS qui force le second axe à
+   "auto" dès qu'un seul overflow est non-visible transforme .main en zone
+   scrollable horizontalement au moindre débordement d'un pixel — c'est ce
+   qui faisait "glisser" tout l'écran sur mobile au moindre swipe latéral. */
+.main{overflow-y:auto;overflow-x:hidden;height:100vh}
 .topbar{
   position:sticky;top:0;z-index:20;background:rgba(251,248,245,.85);backdrop-filter:blur(12px);
   border-bottom:1px solid var(--line);padding:16px 30px;display:flex;align-items:center;gap:18px;
