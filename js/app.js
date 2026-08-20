@@ -1278,14 +1278,30 @@ async function confirmMobilePayment(methode){
       <div class="processing">
         <div class="phone-anim"><div class="ring"></div><div class="spinner"></div></div>
         <div class="proc-title">En attente du paiement ${m.name}…</div>
-        <div class="proc-sub">Demandez au client d'ouvrir ce lien sur son téléphone.</div>
+        <div class="proc-sub">Faites scanner ce code par le client avec l'appareil photo de son téléphone — ou ouvrez le lien directement.</div>
+        <div class="pay-qr" id="pay-qr"></div>
         <a class="btn btn-gold btn-block" style="margin:14px 0" href="${result.launchUrl}" target="_blank" rel="noopener">Ouvrir le lien de paiement ${m.name}</a>
         <button class="btn btn-ghost btn-block" onclick="renderPayMethods()">Changer de moyen</button>
       </div>`;
+    renderPaymentQr(result.launchUrl, m.name);
     pollTicketPayment(currentTicketId, m.name);
   }catch(err){
     toast(err.message||'Impossible de créer la demande de paiement');
   }
+}
+// Le client scanne avec son propre téléphone au lieu qu'on lui prête celui
+// du salon — `qrcode` vient de js/lib/qrcode.js (vendored, sans dépendance
+// réseau). Si jamais indisponible, le bouton "Ouvrir le lien" au-dessus
+// reste utilisable tel quel (rien ne casse, juste pas de QR affiché).
+function renderPaymentQr(url, methodName){
+  const host = document.getElementById('pay-qr');
+  if(!host || typeof qrcode!=='function') return;
+  try{
+    const qr = qrcode(0, 'M');
+    qr.addData(url);
+    qr.make();
+    host.innerHTML = qr.createSvgTag({cellSize:5, margin:8, alt:`Code de paiement ${methodName}`});
+  }catch(err){ /* le lien "Ouvrir" reste disponible, pas de blocage */ }
 }
 // Pas de SSE en V1 — vérification par sondage (CDC §5.3 : expiration à 5 min).
 let pollTimer=null;

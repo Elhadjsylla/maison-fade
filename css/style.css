@@ -316,6 +316,8 @@ input,select{font-family:inherit;font-size:16px}
 .spinner{width:46px;height:46px;border:3.5px solid rgba(201,154,59,.18);border-top-color:var(--gold);border-radius:50%;animation:spin 1.6s cubic-bezier(0.4,0,0.2,1) infinite}
 .proc-title{font-weight:700;font-size:16px;margin-top:4px}
 .proc-sub{font-size:13px;color:var(--muted);margin-top:6px;line-height:1.5}
+.pay-qr{display:flex;justify-content:center;margin:18px 0}
+.pay-qr svg{width:172px;height:172px;background:#fff;border-radius:14px;padding:12px;border:1px solid var(--line);box-shadow:var(--shadow)}
 .ussd-box{background:var(--plum);color:#EFE3EE;border-radius:14px;padding:16px;margin:18px 0;font-size:13.5px;line-height:1.6;text-align:left}
 .ussd-box b{color:var(--gold-2)}
 
