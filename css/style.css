@@ -77,7 +77,12 @@ input,select{font-family:inherit;font-size:16px}
 .main{overflow-y:auto;overflow-x:hidden;height:100vh}
 .topbar{
   position:sticky;top:0;z-index:20;background:rgba(251,248,245,.85);backdrop-filter:blur(12px);
-  border-bottom:1px solid var(--line);padding:16px 30px;display:flex;align-items:center;gap:18px;
+  border-bottom:1px solid var(--line);display:flex;align-items:center;gap:18px;
+  /* En PWA installée (apple-mobile-web-app-capable), la barre de statut
+     (horloge, réseau...) se superpose au contenu au lieu de rester dans sa
+     propre bande — env() vaut 0 dans un onglet Safari normal, donc ça ne
+     change rien hors mode standalone. */
+  padding:calc(16px + env(safe-area-inset-top)) 30px 16px;
 }
 .topbar h1{font-family:'Fraunces',serif;font-size:22px;font-weight:600}
 .topbar .crumb{font-size:12.5px;color:var(--muted)}
@@ -645,14 +650,15 @@ input,select{font-family:inherit;font-size:16px}
   .app{grid-template-columns:1fr}
   .sidebar{
     display:flex;position:fixed;top:0;left:0;bottom:0;width:268px;z-index:135;
-    transform:translateX(-102%);transition:transform .28s cubic-bezier(.2,.85,.3,1)
+    transform:translateX(-102%);transition:transform .28s cubic-bezier(.2,.85,.3,1);
+    padding-top:calc(22px + env(safe-area-inset-top))
   }
   .sidebar.open{transform:none}
   .burger{display:grid}
   .mnav{display:grid}
   .main{padding-bottom:74px}
   .content{padding:16px 16px 40px}
-  .topbar{padding:12px 16px;gap:10px}
+  .topbar{padding:calc(12px + env(safe-area-inset-top)) 16px 12px;gap:10px}
   .topbar h1{font-size:18px}
   .topbar .crumb{display:none}
   .search-btn span,.search-btn kbd{display:none}
@@ -792,7 +798,7 @@ body.locked{overflow:hidden}
   #auth.show{grid-template-columns:1fr}
   .auth-side{display:none}
   .auth-brand{display:flex}
-  .auth-main{align-items:start;padding:34px 20px}
+  .auth-main{align-items:start;padding:calc(34px + env(safe-area-inset-top)) 20px 34px}
 }
 
 /* ---------- Custom SaaS Select Component ---------- */

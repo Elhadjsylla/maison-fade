@@ -382,7 +382,7 @@ async function addClientFromView(){
 /* =================== RENDER: OTHER VIEWS =================== */
 function renderRdv(){
   const tb=document.getElementById('rdv-tbody');
-  tb.innerHTML=RDV.map(r=>{
+  tb.innerHTML = RDV.length ? RDV.map(r=>{
     const st=STATUS[r.statut]||STATUS.a_venir;
     const nom=r.client?.nom || 'Client de passage';
     return `<tr>
@@ -393,7 +393,7 @@ function renderRdv(){
       <td><span class="tag ${st[0]}">${st[1]}</span></td>
       <td style="text-align:right"><button class="btn btn-ghost" style="padding:7px 12px" onclick="checkoutRdv('${r.id}')">Encaisser</button></td>
     </tr>`;
-  }).join('');
+  }).join('') : `<tr><td colspan="6" style="text-align:center;padding:36px;color:var(--muted)">Aucun rendez-vous pour cette période.</td></tr>`;
   document.getElementById('kpi-rdv').textContent=RDV.length;
   const enAttente = RDV.filter(r=>r.statut==='attente_sur_place').length;
   const aVenir = RDV.filter(r=>r.statut==='a_venir').length;
